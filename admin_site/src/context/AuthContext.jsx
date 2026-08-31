@@ -73,8 +73,16 @@ export const AuthProvider = ({ children }) => {
     toast.success('Logged out successfully');
   };
 
+  const updateAdminState = (newAdminData) => {
+    setAdmin(prev => {
+      const updated = { ...prev, ...newAdminData };
+      localStorage.setItem('saha_admin_user', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   return (
-    <AuthContext.Provider value={{ admin, token, loading, login, logout, isAdmin: admin?.role === 'admin' }}>
+    <AuthContext.Provider value={{ admin, token, loading, login, logout, updateAdminState, isAdmin: admin?.role === 'admin' }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,38 +1,79 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
+import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Settings, Store, Shield, Save, Key, Mail, Phone, DollarSign } from 'lucide-react';
+import { Settings, Store, Shield, Save } from 'lucide-react';
 
 const SettingsPage = () => {
-  const { admin } = useAuth();
-  const [shopSettings, setShopSettings] = useState({
-    shopName: "SAHA MEN'S STORE",
-    contactEmail: 'support@sahamenswear.com',
-    contactPhone: '+91 98765 43210',
-    currency: 'INR (₹)',
-    deliveryCharge: 99
+  const { admin, updateAdminState } = useAuth();
+
+  const [shopSettings, setShopSettings] = useState(() => {
+    const saved = localStorage.getItem('saha_shop_settings');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch (e) {}
+    }
+    return {
+      shopName: "SAHA MEN'S STORE",
+      contactEmail: 'support@sahamenswear.com',
+      contactPhone: '+91 98765 43210',
+      currency: 'INR (₹)',
+      deliveryCharge: 99
+    };
   });
 
   const [profileData, setProfileData] = useState({
-    name: admin?.name || 'Saha Admin',
-    email: admin?.email || 'admin@sahamenswear.com',
+    name: admin?.name || 'Nagarjun (Admin)',
+    email: admin?.email || 'myakalanagarjun@gmail.com',
     newPassword: '',
     confirmPassword: ''
   });
 
+  useEffect(() => {
+    if (admin) {
+      setProfileData(prev => ({
+        ...prev,
+        name: admin.name || prev.name,
+        email: admin.email || prev.email
+      }));
+    }
+  }, [admin]);
+
   const handleSaveShopSettings = (e) => {
     e.preventDefault();
+    localStorage.setItem('saha_shop_settings', JSON.stringify(shopSettings));
     toast.success('Store configurations saved successfully!');
   };
 
-  const handleSaveProfile = (e) => {
+  const handleSaveProfile = async (e) => {
     e.preventDefault();
     if (profileData.newPassword && profileData.newPassword !== profileData.confirmPassword) {
       toast.error('Passwords do not match');
       return;
     }
-    toast.success('Admin profile updated!');
-    setProfileData(prev => ({ ...prev, newPassword: '', confirmPassword: '' }));
+
+    try {
+      const payload = {
+        name: profileData.name,
+        email: profileData.email
+      };
+      if (profileData.newPassword) {
+        payload.password = profileData.newPassword;
+      }
+
+      const res = await api.put('/auth/profile', payload).catch(() => null);
+      if (res && res.data) {
+        updateAdminState({ name: res.data.name, email: res.data.email });
+      } else {
+        updateAdminState({ name: profileData.name, email: profileData.email });
+      }
+
+      toast.success('Admin profile updated!');
+      setProfileData(prev => ({ ...prev, newPassword: '', confirmPassword: '' }));
+    } catch (error) {
+      toast.error('Failed to update admin profile');
+    }
   };
 
   return (

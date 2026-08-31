@@ -54,32 +54,57 @@ exports.registerUser = async (req, res) => {
 exports.loginUser = async (req, res) => {
   const { email, password } = req.body;
 
+  const normalizedEmail = (email || '').toLowerCase().trim();
+  const allowedAdminEmail = (process.env.ADMIN_EMAIL || 'myakalanagarjun@gmail.com').toLowerCase().trim();
+  const allowedAdminPass = process.env.ADMIN_PASSWORD || 'naga@012';
+
   try {
-    const user = await User.findOne({ email }).catch(() => null);
-    if (user && (await user.matchPassword(password).catch(() => false))) {
-      return res.json({
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        token: generateToken(user._id)
-      });
+    const user = await User.findOne({ email: normalizedEmail }).catch(() => null);
+    if (user) {
+      const isMatch = await user.matchPassword(password).catch(() => false);
+      if (isMatch) {
+        return res.json({
+          _id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          token: generateToken(user._id)
+        });
+      } else {
+        return res.status(401).json({ message: 'Invalid email or password' });
+      }
     }
   } catch (err) {
     console.error('Login DB error:', err);
   }
 
-  // Fallback demo user session if DB is unconfigured
-  const isSuperAdmin = email && (email.toLowerCase().includes('admin') || email.toLowerCase().includes('saha'));
+  // Fallback check if MongoDB is offline or user not created yet
+  if (normalizedEmail === allowedAdminEmail && password === allowedAdminPass) {
+    const mockAdminId = 'admin_' + Date.now();
+    return res.json({
+      _id: mockAdminId,
+      name: 'Nagarjun (Admin)',
+      email: allowedAdminEmail,
+      role: 'admin',
+      token: generateToken(mockAdminId)
+    });
+  }
+
+  if (normalizedEmail === allowedAdminEmail) {
+    return res.status(401).json({ message: 'Invalid email or password' });
+  }
+
+  // Regular customer fallback session if DB is unconfigured
   const mockId = 'usr_' + Date.now();
   return res.json({
     _id: mockId,
-    name: isSuperAdmin ? 'Admin User' : (email ? email.split('@')[0] : 'Saha Member'),
-    email: email || 'user@urbanfit.com',
-    role: isSuperAdmin ? 'admin' : 'user',
+    name: email ? email.split('@')[0] : 'Saha Member',
+    email: normalizedEmail || 'user@urbanfit.com',
+    role: 'user',
     token: generateToken(mockId)
   });
 };
+
 
 // @desc Get user profile
 // @route GET /api/auth/profile

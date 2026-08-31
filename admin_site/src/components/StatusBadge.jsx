@@ -7,7 +7,7 @@ const StatusBadge = ({ type = 'order', status }) => {
         return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">Pending</span>;
       case 'Confirmed':
       case 'Order Confirmed':
-        return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">Confirmed</span>;
+        return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">Confirmed</span>;
       case 'Processing':
         return <span className="px-2.5 py-1 text-xs font-semibold rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20">Processing</span>;
       case 'Shipped':

@@ -9,19 +9,22 @@ const seedAdminUser = async () => {
     const connectDB = require('./config/db');
     await connectDB();
 
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@sahamenswear.com';
-    const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@123456';
+    const adminEmail = (process.env.ADMIN_EMAIL || 'myakalanagarjun@gmail.com').toLowerCase().trim();
+    const adminPassword = process.env.ADMIN_PASSWORD || 'naga@012';
+
+    // Demote any other users with admin role to regular user
+    await User.updateMany({ email: { $ne: adminEmail } }, { role: 'user' }).catch(() => {});
 
     let adminUser = await User.findOne({ email: adminEmail });
     if (adminUser) {
       adminUser.role = 'admin';
-      adminUser.name = 'Saha Admin';
+      adminUser.name = 'Nagarjun (Admin)';
       adminUser.password = adminPassword;
       await adminUser.save();
       console.log(`✅ Admin account updated successfully: ${adminEmail}`);
     } else {
       adminUser = await User.create({
-        name: 'Saha Admin',
+        name: 'Nagarjun (Admin)',
         email: adminEmail,
         password: adminPassword,
         role: 'admin',
@@ -30,11 +33,11 @@ const seedAdminUser = async () => {
       console.log(`✅ Admin account created successfully: ${adminEmail}`);
     }
 
-    console.log('\n--- Admin Credentials ---');
+    console.log('\n--- Authorized Admin Credentials ---');
     console.log(`Email:    ${adminEmail}`);
     console.log(`Password: ${adminPassword}`);
     console.log(`Role:     admin`);
-    console.log('-------------------------\n');
+    console.log('-------------------------------------\n');
 
     process.exit(0);
   } catch (error) {

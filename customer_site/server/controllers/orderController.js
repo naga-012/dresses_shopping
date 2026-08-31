@@ -50,8 +50,8 @@ exports.addOrderItems = async (req, res) => {
       totalPrice,
       isPaid: paymentMethod !== 'COD',
       paidAt: paymentMethod !== 'COD' ? Date.now() : null,
-      orderStatus: 'Confirmed',
-      statusTimeline: [{ status: 'Confirmed', updatedAt: Date.now() }]
+      orderStatus: 'Pending',
+      statusTimeline: [{ status: 'Pending', updatedAt: Date.now() }]
     });
 
     const createdOrder = await order.save().catch((err) => {
@@ -102,8 +102,8 @@ exports.addOrderItems = async (req, res) => {
       totalPrice,
       isPaid: paymentMethod !== 'COD',
       paidAt: paymentMethod !== 'COD' ? new Date() : null,
-      orderStatus: 'Confirmed',
-      statusTimeline: [{ status: 'Confirmed', updatedAt: new Date() }],
+      orderStatus: 'Pending',
+      statusTimeline: [{ status: 'Pending', updatedAt: new Date() }],
       createdAt: new Date()
     };
     memoryOrders.unshift(mockOrder);
@@ -126,8 +126,8 @@ exports.addOrderItems = async (req, res) => {
       itemsPrice: req.body?.itemsPrice || 0,
       totalPrice: req.body?.totalPrice || 0,
       isPaid: req.body?.paymentMethod !== 'COD',
-      orderStatus: 'Confirmed',
-      statusTimeline: [{ status: 'Confirmed', updatedAt: new Date() }],
+      orderStatus: 'Pending',
+      statusTimeline: [{ status: 'Pending', updatedAt: new Date() }],
       createdAt: new Date()
     };
     memoryOrders.unshift(fallbackOrder);
@@ -179,15 +179,23 @@ exports.getOrderById = async (req, res) => {
 // @route GET /api/orders/myorders
 exports.getMyOrders = async (req, res) => {
   try {
+    let userOrders = [];
     if (req.user?._id && mongoose.Types.ObjectId.isValid(req.user._id)) {
-      const orders = await Order.find({ user: req.user._id }).sort('-createdAt').catch(() => []);
-      if (orders && orders.length > 0) {
-        return res.json(orders);
-      }
+      userOrders = await Order.find({ user: req.user._id }).sort('-createdAt').catch(() => []);
     }
-  } catch (error) {}
 
-  return res.json(memoryOrders);
+    if (!userOrders || userOrders.length === 0) {
+      userOrders = await Order.find({}).sort('-createdAt').limit(20).catch(() => []);
+    }
+
+    const dbOrderIds = new Set(userOrders.map(o => String(o._id)));
+    const remainingMemOrders = (memoryOrders || []).filter(mo => !dbOrderIds.has(String(mo._id)));
+    const combinedOrders = [...userOrders, ...remainingMemOrders].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    return res.json(combinedOrders);
+  } catch (error) {
+    return res.json(memoryOrders || []);
+  }
 };
 
 // @desc Get all orders (Admin)

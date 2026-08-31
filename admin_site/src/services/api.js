@@ -26,9 +26,13 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-      // Don't auto-redirect if already on login page
       if (!window.location.pathname.includes('/login')) {
-        console.warn('Unauthorized admin access attempt detected.');
+        console.warn('Unauthorized admin access attempt detected. Redirecting to login...');
+        localStorage.removeItem('saha_admin_token');
+        localStorage.removeItem('saha_admin_user');
+        sessionStorage.removeItem('saha_admin_token');
+        sessionStorage.removeItem('saha_admin_user');
+        window.location.href = '/login';
       }
     }
     return Promise.reject(error);

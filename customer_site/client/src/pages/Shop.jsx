@@ -6,6 +6,7 @@ import { useCartStore } from '../store/cartStore';
 import { useWishlistStore } from '../store/wishlistStore';
 import API from '../api';
 import toast from 'react-hot-toast';
+import { io } from 'socket.io-client';
 
 import { FALLBACK_PRODUCTS } from '../data/fallbackProducts';
 
@@ -25,6 +26,33 @@ export default function Shop() {
   const [sortBy, setSortBy] = useState('featured');
 
   const categories = ['All', '🔥 New Arrivals', '❤️ Liked Items', 'Shirts', 'T-Shirts', 'Hoodies', 'Jackets', 'Blazers', 'Jeans', 'Pants', 'Shoes', 'Traditional Wear'];
+
+  useEffect(() => {
+    const socket = io('http://localhost:5000', {
+      transports: ['websocket', 'polling']
+    });
+
+    socket.on('product:created', (newProduct) => {
+      toast.success(`✨ New Product Added: ${newProduct.name}`);
+      setProducts(prev => [newProduct, ...prev.filter(p => p._id !== newProduct._id)]);
+    });
+
+    socket.on('product:updated', (updatedProduct) => {
+      setProducts(prev => prev.map(p => p._id === updatedProduct._id ? updatedProduct : p));
+    });
+
+    socket.on('product:stock_updated', (updatedProduct) => {
+      setProducts(prev => prev.map(p => p._id === updatedProduct._id ? updatedProduct : p));
+    });
+
+    socket.on('product:deleted', ({ id }) => {
+      setProducts(prev => prev.filter(p => p._id !== id));
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     const filterParam = searchParams.get('filter');

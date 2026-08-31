@@ -3,12 +3,33 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Package, ChevronRight, Clock, Truck, CheckCircle, ArrowLeft, ShoppingBag } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import API from '../api';
+import toast from 'react-hot-toast';
+import { io } from 'socket.io-client';
 
 export default function MyOrders() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const socket = io('http://localhost:5000', {
+      transports: ['websocket', 'polling']
+    });
+
+    socket.on('order:updated', (updatedOrder) => {
+      setOrders(prev => prev.map(o => String(o._id) === String(updatedOrder._id) ? { ...o, ...updatedOrder } : o));
+      if (updatedOrder.orderStatus === 'Cancelled') {
+        toast.error(`Order #${String(updatedOrder.orderId || updatedOrder._id).substring(0, 10).toUpperCase()} has been Cancelled`);
+      } else {
+        toast.success(`Order #${String(updatedOrder.orderId || updatedOrder._id).substring(0, 10).toUpperCase()} status updated to ${updatedOrder.orderStatus}`);
+      }
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     if (!user) {
@@ -31,15 +52,20 @@ export default function MyOrders() {
 
   const getStatusColor = (status) => {
     switch (status) {
+      case 'Confirmed':
+      case 'Order Confirmed':
       case 'Delivered':
-        return { bg: 'rgba(16, 185, 129, 0.15)', color: '#10b981', border: 'rgba(16, 185, 129, 0.4)' };
+        return { bg: 'rgba(16, 185, 129, 0.2)', color: '#10b981', border: 'rgba(16, 185, 129, 0.5)' };
       case 'Shipped':
       case 'Out for Delivery':
         return { bg: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', border: 'rgba(59, 130, 246, 0.4)' };
       case 'Processing':
-        return { bg: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: 'rgba(245, 158, 11, 0.4)' };
-      default:
         return { bg: 'rgba(212, 175, 55, 0.15)', color: '#d4af37', border: 'rgba(212, 175, 55, 0.4)' };
+      case 'Cancelled':
+        return { bg: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: 'rgba(239, 68, 68, 0.4)' };
+      case 'Pending':
+      default:
+        return { bg: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: 'rgba(245, 158, 11, 0.4)' };
     }
   };
 

@@ -155,6 +155,12 @@ exports.updateAdminOrderStatus = async (req, res) => {
       }
 
       const updatedOrder = await order.save();
+      const memOrder = (memoryOrders || []).find(o => String(o._id) === String(req.params.id));
+      if (memOrder) {
+        memOrder.orderStatus = status;
+        memOrder.statusTimeline = memOrder.statusTimeline || [];
+        memOrder.statusTimeline.push({ status, updatedAt: new Date() });
+      }
       emitOrderEvent(req, 'order:updated', updatedOrder);
       return res.json(updatedOrder);
     }
