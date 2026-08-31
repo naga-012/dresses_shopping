@@ -5,9 +5,41 @@ const mongoose = require('mongoose');
 const fs = require('fs');
 const path = require('path');
 
+const seedOrders = [
+  {
+    _id: '6a958f1e684246dd9a1785af',
+    orderId: 'ORD-6A958F1E68',
+    user: 'usr_saha_demo',
+    orderItems: [
+      {
+        name: 'Puma Speedcat Suede Black & Silver Formstrip Sneakers',
+        image: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=800&auto=format&fit=crop&q=60',
+        price: 1800,
+        qty: 1,
+        size: 'M'
+      }
+    ],
+    shippingAddress: {
+      fullName: 'Saha Member',
+      street: 'street number 5, Satavahana Nagar',
+      city: 'Hyderabad',
+      pincode: '500085',
+      phone: '09121792433'
+    },
+    paymentMethod: 'COD',
+    itemsPrice: 1800,
+    shippingPrice: 100,
+    totalPrice: 1900,
+    isPaid: false,
+    orderStatus: 'Pending',
+    statusTimeline: [{ status: 'Pending', updatedAt: new Date('2026-08-31T19:56:00.000Z') }],
+    createdAt: new Date('2026-08-31T19:56:00.000Z')
+  }
+];
+
 // Memory store for mock orders when DB is unconfigured
-if (!global.memoryOrders) {
-  global.memoryOrders = [];
+if (!global.memoryOrders || global.memoryOrders.length === 0) {
+  global.memoryOrders = [...seedOrders];
 }
 const memoryOrders = global.memoryOrders;
 exports.memoryOrders = memoryOrders;
@@ -44,7 +76,7 @@ const saveCachedOrders = (orders) => {
 const getMergedMemoryOrders = () => {
   const fileOrders = readCachedOrders();
   const map = new Map();
-  [...memoryOrders, ...fileOrders].forEach(o => {
+  [...seedOrders, ...memoryOrders, ...fileOrders].forEach(o => {
     if (o && (o._id || o.orderId)) {
       const key = String(o._id || o.orderId);
       if (!map.has(key) || new Date(o.updatedAt || o.createdAt || 0) > new Date(map.get(key).updatedAt || map.get(key).createdAt || 0)) {
