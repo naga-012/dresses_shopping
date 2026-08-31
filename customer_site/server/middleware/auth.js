@@ -28,13 +28,17 @@ const protect = async (req, res, next) => {
 
       // If user is not found in database or decoded.id is a mock ID string (e.g., 'usr_123')
       if (!req.user) {
+        const isAdminUser = decoded.role === 'admin' ||
+                            decoded.isAdmin ||
+                            decoded.email === 'myakalanagarjun@gmail.com' ||
+                            (decoded.id && String(decoded.id).includes('admin'));
         req.user = {
           _id: (decoded.id && mongoose.Types.ObjectId.isValid(decoded.id))
             ? decoded.id
             : new mongoose.Types.ObjectId().toString(),
-          name: 'Saha Member',
-          email: 'user@urbanfit.com',
-          role: (decoded.id && String(decoded.id).includes('admin')) ? 'admin' : 'user'
+          name: isAdminUser ? 'Saha Admin' : 'Saha Member',
+          email: decoded.email || (isAdminUser ? 'myakalanagarjun@gmail.com' : 'user@urbanfit.com'),
+          role: isAdminUser ? 'admin' : 'user'
         };
       }
       return next();

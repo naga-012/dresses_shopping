@@ -164,21 +164,7 @@ exports.getOrderById = async (req, res) => {
     return res.json(memOrder);
   }
 
-  // Fallback demo order object if ID not found in DB
-  return res.json({
-    _id: req.params.id,
-    user: req.user?._id || 'usr_demo',
-    orderItems: [],
-    shippingAddress: { fullName: 'Saha Member', street: 'Sample Street', city: 'Mumbai', pincode: '400001', phone: '9999999999' },
-    paymentMethod: 'UPI',
-    itemsPrice: 500,
-    shippingPrice: 100,
-    totalPrice: 600,
-    isPaid: true,
-    orderStatus: 'Order Confirmed',
-    statusTimeline: [{ status: 'Order Confirmed', updatedAt: new Date() }],
-    createdAt: new Date()
-  });
+  return res.status(404).json({ message: 'Order not found' });
 };
 
 // @desc Get logged in user orders
