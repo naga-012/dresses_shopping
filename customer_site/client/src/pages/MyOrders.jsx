@@ -42,8 +42,23 @@ export default function MyOrders() {
         const res = await API.get('/orders/myorders');
         const apiOrders = Array.isArray(res.data) ? res.data : [];
         const localOrders = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
+
+        const refreshedLocal = await Promise.all(localOrders.map(async (lo) => {
+          try {
+            const single = await API.get(`/orders/${lo._id}`);
+            if (single.data && single.data.orderStatus) {
+              return { ...lo, ...single.data };
+            }
+          } catch (e) {}
+          return lo;
+        }));
+
+        try {
+          localStorage.setItem('urbanfit_customer_orders', JSON.stringify(refreshedLocal));
+        } catch (e) {}
+
         const dbIds = new Set(apiOrders.map(o => String(o._id)));
-        const uniqueLocal = localOrders.filter(o => !dbIds.has(String(o._id)));
+        const uniqueLocal = refreshedLocal.filter(o => !dbIds.has(String(o._id)));
         const merged = [...apiOrders, ...uniqueLocal].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         setOrders(merged);
       } catch (err) {

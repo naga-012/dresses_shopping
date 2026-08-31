@@ -3,7 +3,10 @@ const Product = require('../models/Product');
 const mongoose = require('mongoose');
 
 // Memory store for mock orders when DB is unconfigured
-const memoryOrders = [];
+if (!global.memoryOrders) {
+  global.memoryOrders = [];
+}
+const memoryOrders = global.memoryOrders;
 exports.memoryOrders = memoryOrders;
 
 // @desc Create new order
