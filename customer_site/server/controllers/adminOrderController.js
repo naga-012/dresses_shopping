@@ -1,6 +1,6 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
-const { memoryOrders } = require('./orderController');
+const { memoryOrders, getMergedMemoryOrders } = require('./orderController');
 
 // Helper to notify connected WebSocket clients about order updates
 const emitOrderEvent = (req, eventName, data) => {
@@ -52,8 +52,9 @@ exports.getAdminOrders = async (req, res) => {
     }
 
     // Combine dbOrders and memoryOrders, eliminating duplicate IDs
+    const allMem = getMergedMemoryOrders ? getMergedMemoryOrders() : (memoryOrders || []);
     const dbOrderIds = new Set(dbOrders.map(o => String(o._id)));
-    const filteredMemOrders = (memoryOrders || []).filter(mo => {
+    const filteredMemOrders = allMem.filter(mo => {
       if (dbOrderIds.has(String(mo._id))) return false;
       if (status && status !== 'All') {
         if (status === 'Confirmed' && !(mo.orderStatus === 'Confirmed' || mo.orderStatus === 'Order Confirmed')) return false;

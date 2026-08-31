@@ -1,7 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { addOrderItems, getOrderById, getMyOrders, getOrders, updateOrderStatus } = require('../controllers/orderController');
+const { addOrderItems, getOrderById, getMyOrders, getOrders, updateOrderStatus, syncOrderCache } = require('../controllers/orderController');
 const { protect, admin } = require('../middleware/auth');
+
+router.post('/sync', syncOrderCache);
 
 router.route('/')
   .post(protect, addOrderItems)

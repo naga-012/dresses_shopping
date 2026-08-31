@@ -181,6 +181,7 @@ export default function Checkout() {
         const existing = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
         const updated = [res.data, ...existing.filter(o => String(o._id) !== String(res.data._id))];
         localStorage.setItem('urbanfit_customer_orders', JSON.stringify(updated));
+        await API.post('/orders/sync', res.data).catch(() => {});
       } catch (e) {}
 
       clearCart();

@@ -2,12 +2,83 @@ const Order = require('../models/Order');
 const Product = require('../models/Product');
 const mongoose = require('mongoose');
 
+const fs = require('fs');
+const path = require('path');
+
 // Memory store for mock orders when DB is unconfigured
 if (!global.memoryOrders) {
   global.memoryOrders = [];
 }
 const memoryOrders = global.memoryOrders;
 exports.memoryOrders = memoryOrders;
+
+const getCacheFilePath = () => {
+  try {
+    const tmpDir = process.env.VERCEL ? '/tmp' : path.join(__dirname, '../');
+    return path.join(tmpDir, 'orders_cache.json');
+  } catch (e) {
+    return null;
+  }
+};
+
+const readCachedOrders = () => {
+  try {
+    const file = getCacheFilePath();
+    if (file && fs.existsSync(file)) {
+      const data = fs.readFileSync(file, 'utf8');
+      return JSON.parse(data) || [];
+    }
+  } catch (e) {}
+  return [];
+};
+
+const saveCachedOrders = (orders) => {
+  try {
+    const file = getCacheFilePath();
+    if (file) {
+      fs.writeFileSync(file, JSON.stringify(orders));
+    }
+  } catch (e) {}
+};
+
+const getMergedMemoryOrders = () => {
+  const fileOrders = readCachedOrders();
+  const map = new Map();
+  [...memoryOrders, ...fileOrders].forEach(o => {
+    if (o && (o._id || o.orderId)) {
+      const key = String(o._id || o.orderId);
+      if (!map.has(key) || new Date(o.updatedAt || o.createdAt || 0) > new Date(map.get(key).updatedAt || map.get(key).createdAt || 0)) {
+        map.set(key, o);
+      }
+    }
+  });
+  const merged = Array.from(map.values()).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  saveCachedOrders(merged);
+  return merged;
+};
+
+exports.getMergedMemoryOrders = getMergedMemoryOrders;
+
+// @desc Sync order from client or serverless lambda
+// @route POST /api/orders/sync
+exports.syncOrderCache = async (req, res) => {
+  try {
+    const orderData = req.body;
+    if (orderData && (orderData._id || orderData.orderId)) {
+      const existingIdx = memoryOrders.findIndex(o => String(o._id) === String(orderData._id) || String(o.orderId) === String(orderData.orderId));
+      if (existingIdx >= 0) {
+        memoryOrders[existingIdx] = { ...memoryOrders[existingIdx], ...orderData };
+      } else {
+        memoryOrders.unshift(orderData);
+      }
+      getMergedMemoryOrders();
+      return res.json({ success: true, order: orderData });
+    }
+    return res.status(400).json({ message: 'Invalid order data' });
+  } catch (err) {
+    return res.status(500).json({ message: err.message });
+  }
+};
 
 // @desc Create new order
 // @route POST /api/orders
@@ -85,6 +156,7 @@ exports.addOrderItems = async (req, res) => {
       }
 
       memoryOrders.unshift(createdOrder);
+      getMergedMemoryOrders();
 
       // Emit Socket.IO notification to admin clients
       if (io) {
@@ -113,6 +185,7 @@ exports.addOrderItems = async (req, res) => {
       createdAt: new Date()
     };
     memoryOrders.unshift(mockOrder);
+    getMergedMemoryOrders();
 
     if (io) {
       io.emit('order:created', mockOrder);
@@ -137,6 +210,7 @@ exports.addOrderItems = async (req, res) => {
       createdAt: new Date()
     };
     memoryOrders.unshift(fallbackOrder);
+    getMergedMemoryOrders();
 
     const io = req.app.get('io');
     if (io) {
@@ -159,7 +233,8 @@ exports.getOrderById = async (req, res) => {
     }
   } catch (error) {}
 
-  const memOrder = memoryOrders.find(o => String(o._id) === String(req.params.id));
+  const allMem = getMergedMemoryOrders();
+  const memOrder = allMem.find(o => String(o._id) === String(req.params.id) || String(o.orderId) === String(req.params.id));
   if (memOrder) {
     return res.json(memOrder);
   }
@@ -180,13 +255,14 @@ exports.getMyOrders = async (req, res) => {
       userOrders = await Order.find({}).sort('-createdAt').limit(20).catch(() => []);
     }
 
+    const allMem = getMergedMemoryOrders();
     const dbOrderIds = new Set(userOrders.map(o => String(o._id)));
-    const remainingMemOrders = (memoryOrders || []).filter(mo => !dbOrderIds.has(String(mo._id)));
+    const remainingMemOrders = allMem.filter(mo => !dbOrderIds.has(String(mo._id)));
     const combinedOrders = [...userOrders, ...remainingMemOrders].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 
     return res.json(combinedOrders);
   } catch (error) {
-    return res.json(memoryOrders || []);
+    return res.json(getMergedMemoryOrders());
   }
 };
 
