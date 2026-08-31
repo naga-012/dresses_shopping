@@ -40,6 +40,11 @@ export default function OrderTracking() {
         setOrder(res.data);
       } catch (err) {
         console.error(err);
+        const localOrders = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
+        const found = localOrders.find(o => String(o._id) === String(id) || String(o.orderId) === String(id));
+        if (found) {
+          setOrder(found);
+        }
       } finally {
         setLoading(false);
       }

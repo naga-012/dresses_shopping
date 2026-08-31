@@ -177,6 +177,12 @@ export default function Checkout() {
       };
 
       const res = await API.post('/orders', payload);
+      try {
+        const existing = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
+        const updated = [res.data, ...existing.filter(o => String(o._id) !== String(res.data._id))];
+        localStorage.setItem('urbanfit_customer_orders', JSON.stringify(updated));
+      } catch (e) {}
+
       clearCart();
       toast.success('Order placed successfully!');
       navigate(`/orders/${res.data._id}`);

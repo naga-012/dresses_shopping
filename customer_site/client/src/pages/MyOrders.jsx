@@ -40,9 +40,16 @@ export default function MyOrders() {
     const fetchOrders = async () => {
       try {
         const res = await API.get('/orders/myorders');
-        setOrders(res.data);
+        const apiOrders = Array.isArray(res.data) ? res.data : [];
+        const localOrders = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
+        const dbIds = new Set(apiOrders.map(o => String(o._id)));
+        const uniqueLocal = localOrders.filter(o => !dbIds.has(String(o._id)));
+        const merged = [...apiOrders, ...uniqueLocal].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        setOrders(merged);
       } catch (err) {
         console.error('Error fetching orders:', err);
+        const localOrders = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
+        setOrders(localOrders);
       } finally {
         setLoading(false);
       }
