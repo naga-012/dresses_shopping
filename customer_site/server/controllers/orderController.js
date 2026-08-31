@@ -31,8 +31,11 @@ const seedOrders = [
     shippingPrice: 100,
     totalPrice: 1900,
     isPaid: false,
-    orderStatus: 'Pending',
-    statusTimeline: [{ status: 'Pending', updatedAt: new Date('2026-08-31T19:56:00.000Z') }],
+    orderStatus: 'Confirmed',
+    statusTimeline: [
+      { status: 'Pending', updatedAt: new Date('2026-08-31T19:56:00.000Z') },
+      { status: 'Confirmed', updatedAt: new Date('2026-08-31T20:00:00.000Z') }
+    ],
     createdAt: new Date('2026-08-31T19:56:00.000Z')
   }
 ];
