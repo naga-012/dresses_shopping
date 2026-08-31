@@ -6,9 +6,8 @@ dotenv.config();
 
 const seedAdminUser = async () => {
   try {
-    const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/mensverse';
-    console.log(`Connecting to MongoDB at ${mongoUri}...`);
-    await mongoose.connect(mongoUri);
+    const connectDB = require('./config/db');
+    await connectDB();
 
     const adminEmail = process.env.ADMIN_EMAIL || 'admin@sahamenswear.com';
     const adminPassword = process.env.ADMIN_PASSWORD || 'Admin@123456';
