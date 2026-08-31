@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Builds
+dist/
+**/dist/
+build/
+**/build/
+
+# Environment files (sensitive data)
+.env
+.env.local
+
+# System files
+.DS_Store
+Thumbs.db
