@@ -188,6 +188,10 @@ const ProductsPage = () => {
                             src={product.thumbnail || product.images?.[0] || 'https://via.placeholder.com/80'}
                             alt={product.name}
                             className="w-12 h-12 rounded-xl object-cover bg-slate-900 border border-slate-700 shrink-0"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = 'https://images.unsplash.com/photo-1521572267360-ee0c2909d518?w=100&auto=format&fit=crop&q=60';
+                            }}
                           />
                           <div>
                             <p className="font-semibold text-slate-100 text-xs">{product.name}</p>
