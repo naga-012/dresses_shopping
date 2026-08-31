@@ -43,9 +43,24 @@ export default function MyOrders() {
         const apiOrders = Array.isArray(res.data) ? res.data : [];
         const localOrders = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
 
-        const refreshedLocal = await Promise.all(localOrders.map(async (lo) => {
+        // Sync updated order status from API into local orders
+        const updatedLocal = localOrders.map(lo => {
+          const match = apiOrders.find(ao =>
+            String(ao._id) === String(lo._id) ||
+            String(ao.orderId) === String(lo.orderId) ||
+            String(ao._id) === String(lo.orderId) ||
+            String(ao.orderId) === String(lo._id)
+          );
+          if (match && match.orderStatus) {
+            return { ...lo, ...match, orderStatus: match.orderStatus };
+          }
+          return lo;
+        });
+
+        const refreshedLocal = await Promise.all(updatedLocal.map(async (lo) => {
           try {
-            const single = await API.get(`/orders/${lo._id}`);
+            const searchId = lo._id || lo.orderId;
+            const single = await API.get(`/orders/${searchId}`);
             if (single.data && single.data.orderStatus) {
               return { ...lo, ...single.data };
             }

@@ -7,6 +7,38 @@ const path = require('path');
 
 const seedOrders = [
   {
+    _id: '6a95a9abheb0923ab34d68a7',
+    orderId: 'ORD-526393',
+    user: 'usr_saha_demo',
+    orderItems: [
+      {
+        name: 'Masato Kawajo SECND SLF Oversized Long Sleeve',
+        image: 'https://images.unsplash.com/photo-1618354691373-d851c5c3a990?w=800&auto=format&fit=crop&q=60',
+        price: 900,
+        qty: 1,
+        size: 'M'
+      }
+    ],
+    shippingAddress: {
+      fullName: 'naga',
+      street: 'KPHB Colony, KPHB Colony',
+      city: 'Hyderabad',
+      pincode: '500072',
+      phone: '09121792433'
+    },
+    paymentMethod: 'COD',
+    itemsPrice: 900,
+    shippingPrice: 100,
+    totalPrice: 1000,
+    isPaid: false,
+    orderStatus: 'Confirmed',
+    statusTimeline: [
+      { status: 'Pending', updatedAt: new Date('2026-08-31T21:40:00.000Z') },
+      { status: 'Confirmed', updatedAt: new Date('2026-08-31T21:45:00.000Z') }
+    ],
+    createdAt: new Date('2026-08-31T21:40:00.000Z')
+  },
+  {
     _id: '6a958f1e684246dd9a1785af',
     orderId: 'ORD-6A958F1E68',
     user: 'usr_saha_demo',
