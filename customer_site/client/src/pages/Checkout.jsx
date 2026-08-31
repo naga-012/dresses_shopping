@@ -181,7 +181,9 @@ export default function Checkout() {
       toast.success('Order placed successfully!');
       navigate(`/orders/${res.data._id}`);
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to place order. Please log in first.');
+      console.error('Order placement error:', err);
+      const msg = err.response?.data?.message || (err.code === 'ECONNABORTED' ? 'Request timed out' : 'Failed to place order. Please try again.');
+      toast.error(msg);
       if (err.response?.status === 401) {
         navigate('/auth');
       }

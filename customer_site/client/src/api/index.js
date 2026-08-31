@@ -2,7 +2,7 @@ import axios from 'axios';
 
 const API = axios.create({
   baseURL: '/api',
-  timeout: 4000 // 4 second fast timeout to prevent hanging on Vercel DB delays
+  timeout: 15000
 });
 
 API.interceptors.request.use((config) => {

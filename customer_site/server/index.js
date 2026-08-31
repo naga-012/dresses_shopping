@@ -34,21 +34,26 @@ app.use(cors({
   credentials: true
 }));
 
-const io = new Server(server, {
-  cors: {
-    origin: '*',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
-  }
-});
+let io = null;
+try {
+  io = new Server(server, {
+    cors: {
+      origin: '*',
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
+    }
+  });
+
+  io.on('connection', (socket) => {
+    console.log('⚡ Socket client connected:', socket.id);
+    socket.on('disconnect', () => {
+      console.log('⚡ Socket client disconnected:', socket.id);
+    });
+  });
+} catch (err) {
+  console.warn('Socket.IO serverless fallback:', err.message);
+}
 
 app.set('io', io);
-
-io.on('connection', (socket) => {
-  console.log('⚡ Socket client connected:', socket.id);
-  socket.on('disconnect', () => {
-    console.log('⚡ Socket client disconnected:', socket.id);
-  });
-});
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -56,14 +61,22 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/uploads', express.static(path.join(__dirname, '../client/public/uploads')));
 app.use(express.static('public'));
 
+// URL normalization middleware for Vercel serverless execution
+app.use((req, res, next) => {
+  if (req.url.startsWith('/api')) {
+    req.url = req.url.substring(4) || '/';
+  }
+  next();
+});
+
 // Routes
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/products', require('./routes/products'));
-app.use('/api/categories', require('./routes/categories'));
-app.use('/api/collections', require('./routes/collections'));
-app.use('/api/orders', require('./routes/orders'));
-app.use('/api/admin', require('./routes/admin'));
-app.use('/api/upload', require('./routes/upload'));
+app.use('/auth', require('./routes/auth'));
+app.use('/products', require('./routes/products'));
+app.use('/categories', require('./routes/categories'));
+app.use('/collections', require('./routes/collections'));
+app.use('/orders', require('./routes/orders'));
+app.use('/admin', require('./routes/admin'));
+app.use('/upload', require('./routes/upload'));
 
 app.get('/', (req, res) => res.json({ message: "SAHA MEN'S STORE API running with Real-time Sync" }));
 

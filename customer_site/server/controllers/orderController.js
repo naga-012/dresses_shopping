@@ -54,10 +54,13 @@ exports.addOrderItems = async (req, res) => {
       statusTimeline: [{ status: 'Pending', updatedAt: Date.now() }]
     });
 
-    const createdOrder = await order.save().catch((err) => {
-      console.warn('DB order save fallback:', err.message);
-      return null;
-    });
+    let createdOrder = null;
+    if (mongoose.connection.readyState >= 1) {
+      createdOrder = await order.save().catch((err) => {
+        console.warn('DB order save fallback:', err.message);
+        return null;
+      });
+    }
 
     const io = req.app.get('io');
 
