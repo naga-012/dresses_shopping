@@ -31,19 +31,29 @@ const SettingsPage = () => {
   });
 
   useEffect(() => {
-    if (admin) {
-      setProfileData(prev => ({
-        ...prev,
-        name: admin.name || prev.name,
-        email: admin.email || prev.email
-      }));
-    }
-  }, [admin]);
+    const fetchSettings = async () => {
+      try {
+        const res = await api.get('/settings');
+        if (res.data) {
+          setShopSettings(prev => ({ ...prev, ...res.data }));
+        }
+      } catch (e) {
+        console.warn('Failed to load server store settings:', e.message);
+      }
+    };
+    fetchSettings();
+  }, []);
 
-  const handleSaveShopSettings = (e) => {
+  const handleSaveShopSettings = async (e) => {
     e.preventDefault();
-    localStorage.setItem('saha_shop_settings', JSON.stringify(shopSettings));
-    toast.success('Store configurations saved successfully!');
+    try {
+      localStorage.setItem('saha_shop_settings', JSON.stringify(shopSettings));
+      await api.post('/settings', shopSettings);
+      toast.success('Store configurations saved & synced live across store!');
+    } catch (e) {
+      console.warn('Server settings save error:', e.message);
+      toast.success('Store configurations saved locally!');
+    }
   };
 
   const handleSaveProfile = async (e) => {

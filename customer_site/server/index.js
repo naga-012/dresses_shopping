@@ -76,6 +76,7 @@ app.use('/categories', require('./routes/categories'));
 app.use('/collections', require('./routes/collections'));
 app.use('/orders', require('./routes/orders'));
 app.use('/admin', require('./routes/admin'));
+app.use('/settings', require('./routes/settings'));
 app.use('/upload', require('./routes/upload'));
 
 app.get('/', (req, res) => res.json({ message: "SAHA MEN'S STORE API running with Real-time Sync" }));

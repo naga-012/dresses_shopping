@@ -29,6 +29,7 @@ app.use('/categories', require('../server/routes/categories'));
 app.use('/collections', require('../server/routes/collections'));
 app.use('/orders', require('../server/routes/orders'));
 app.use('/admin', require('../server/routes/admin'));
+app.use('/settings', require('../server/routes/settings'));
 app.use('/upload', require('../server/routes/upload'));
 
 app.get('/', (req, res) => res.json({ status: 'ok', message: "SAHA MEN'S STORE Vercel API running" }));
