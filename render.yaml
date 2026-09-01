@@ -7,6 +7,9 @@ services:
     rootDir: customer_site/client
     buildCommand: npm install && npm run build
     staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://saha-backend-api.onrender.com/api
     routes:
       - type: rewrite
         source: /*
@@ -19,6 +22,9 @@ services:
     rootDir: admin_site
     buildCommand: npm install && npm run build
     staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://saha-backend-api.onrender.com/api
     routes:
       - type: rewrite
         source: /*

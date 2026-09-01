@@ -3,12 +3,12 @@ import axios from 'axios';
 const getBaseURL = () => {
   if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
   if (typeof window !== 'undefined' && window.location.hostname.includes('render.com')) {
-    return 'https://dresses-shopping.onrender.com/api';
+    return 'https://saha-backend-api.onrender.com/api';
   }
   if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
     return 'https://customersite-psi.vercel.app/api';
   }
-  return 'https://customersite-psi.vercel.app/api';
+  return 'https://saha-backend-api.onrender.com/api';
 };
 
 const api = axios.create({
