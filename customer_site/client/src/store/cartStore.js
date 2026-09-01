@@ -1,21 +1,31 @@
 import { create } from 'zustand';
 import toast from 'react-hot-toast';
 
+const getProductId = (product) => {
+  if (!product) return null;
+  if (typeof product === 'string') return product;
+  const rawId = product._id || product.id || product.slug || product.name;
+  if (!rawId) return null;
+  if (typeof rawId === 'object' && rawId !== null) {
+    if (rawId.$oid) return String(rawId.$oid);
+    if (typeof rawId.toString === 'function') {
+      const s = rawId.toString();
+      if (s !== '[object Object]') return s;
+    }
+  }
+  return String(rawId);
+};
+
 const getInitialCart = () => {
   try {
     const saved = localStorage.getItem('mensverse_cart');
     if (!saved) return [];
     const parsed = JSON.parse(saved);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(item => item && item.product && (item.product._id || item.product.id));
+    return parsed.filter(item => item && item.product && getProductId(item.product));
   } catch (e) {
     return [];
   }
-};
-
-const getProductId = (product) => {
-  if (!product) return null;
-  return product._id || product.id || null;
 };
 
 export const useCartStore = create((set, get) => ({
@@ -25,66 +35,87 @@ export const useCartStore = create((set, get) => ({
   toggleCart: () => set((state) => ({ isCartOpen: !state.isCartOpen })),
   
   addToCart: (product, selectedSize = 'M', selectedColor = null, quantityToAdd = 1) => {
-    const currentCart = get().cart;
+    if (!product) return;
     const targetId = getProductId(product);
     if (!targetId) return;
 
-    const colorName = selectedColor ? selectedColor.name : (product.colors?.[0]?.name || 'Default');
-    const colorHex = selectedColor ? selectedColor.hex : (product.colors?.[0]?.hex || '#000000');
+    const currentCart = get().cart || [];
+    const sizeToUse = selectedSize || (Array.isArray(product.sizes) ? product.sizes[0]?.size : 'M') || 'M';
+    const colorName = typeof selectedColor === 'string'
+      ? selectedColor
+      : (selectedColor?.name || (Array.isArray(product.colors) ? (typeof product.colors[0] === 'string' ? product.colors[0] : product.colors[0]?.name) : 'Default'));
+    
+    const colorHex = typeof selectedColor === 'object' && selectedColor?.hex
+      ? selectedColor.hex
+      : (Array.isArray(product.colors) && typeof product.colors[0] === 'object' ? product.colors[0]?.hex : '#000000');
 
     const existingIndex = currentCart.findIndex(
       (item) => {
         const itemId = getProductId(item.product);
-        return itemId && String(itemId) === String(targetId) && item.size === selectedSize && item.color === colorName;
+        return itemId && String(itemId) === String(targetId) && item.size === sizeToUse && item.color === colorName;
       }
     );
 
     let updatedCart;
     if (existingIndex > -1) {
       updatedCart = [...currentCart];
-      updatedCart[existingIndex].qty += quantityToAdd;
+      updatedCart[existingIndex].qty += (quantityToAdd || 1);
     } else {
       updatedCart = [
         ...currentCart,
         {
           product,
-          size: selectedSize,
+          size: sizeToUse,
           color: colorName,
           colorHex,
-          qty: quantityToAdd,
-          price: product.discountPrice || product.price
+          qty: quantityToAdd || 1,
+          price: product.discountPrice || product.price || 0
         }
       ];
     }
 
-    localStorage.setItem('mensverse_cart', JSON.stringify(updatedCart));
+    try {
+      localStorage.setItem('mensverse_cart', JSON.stringify(updatedCart));
+    } catch (e) {
+      console.error('Failed to save cart to localStorage', e);
+    }
     set({ cart: updatedCart });
-    toast.success(`Added ${product.name} to cart`);
+    toast.success(`Added ${product.name || 'item'} to cart`);
   },
 
   removeFromCart: (index) => {
-    const updatedCart = get().cart.filter((_, i) => i !== index);
-    localStorage.setItem('mensverse_cart', JSON.stringify(updatedCart));
+    const updatedCart = (get().cart || []).filter((_, i) => i !== index);
+    try {
+      localStorage.setItem('mensverse_cart', JSON.stringify(updatedCart));
+    } catch (e) {}
     set({ cart: updatedCart });
     toast.success('Item removed from cart');
   },
 
   updateQty: (index, qty) => {
     if (qty < 1) {
-      const updatedCart = get().cart.filter((_, i) => i !== index);
-      localStorage.setItem('mensverse_cart', JSON.stringify(updatedCart));
+      const updatedCart = (get().cart || []).filter((_, i) => i !== index);
+      try {
+        localStorage.setItem('mensverse_cart', JSON.stringify(updatedCart));
+      } catch (e) {}
       set({ cart: updatedCart });
       toast.success('Item removed from cart');
       return;
     }
-    const updatedCart = [...get().cart];
-    updatedCart[index].qty = qty;
-    localStorage.setItem('mensverse_cart', JSON.stringify(updatedCart));
-    set({ cart: updatedCart });
+    const updatedCart = [...(get().cart || [])];
+    if (updatedCart[index]) {
+      updatedCart[index].qty = qty;
+      try {
+        localStorage.setItem('mensverse_cart', JSON.stringify(updatedCart));
+      } catch (e) {}
+      set({ cart: updatedCart });
+    }
   },
 
   clearCart: () => {
-    localStorage.removeItem('mensverse_cart');
+    try {
+      localStorage.removeItem('mensverse_cart');
+    } catch (e) {}
     set({ cart: [] });
   },
 
@@ -98,21 +129,28 @@ export const useCartStore = create((set, get) => ({
 
   getProductQty: (productId) => {
     if (!productId) return 0;
+    const targetId = typeof productId === 'object' ? getProductId(productId) : String(productId);
+    if (!targetId) return 0;
+
     return (get().cart || [])
       .filter((item) => {
         const itemId = getProductId(item.product);
-        return itemId && String(itemId) === String(productId);
+        return itemId && String(itemId) === String(targetId);
       })
       .reduce((total, item) => total + (item?.qty || 0), 0);
   },
 
   decrementProduct: (productId) => {
     if (!productId) return;
-    const currentCart = get().cart;
+    const targetId = typeof productId === 'object' ? getProductId(productId) : String(productId);
+    if (!targetId) return;
+
+    const currentCart = get().cart || [];
     const existingIndex = currentCart.findIndex((item) => {
       const itemId = getProductId(item.product);
-      return itemId && String(itemId) === String(productId);
+      return itemId && String(itemId) === String(targetId);
     });
+
     if (existingIndex > -1) {
       const updatedCart = [...currentCart];
       if (updatedCart[existingIndex].qty > 1) {
@@ -121,7 +159,9 @@ export const useCartStore = create((set, get) => ({
         updatedCart.splice(existingIndex, 1);
         toast.success('Item removed from cart');
       }
-      localStorage.setItem('mensverse_cart', JSON.stringify(updatedCart));
+      try {
+        localStorage.setItem('mensverse_cart', JSON.stringify(updatedCart));
+      } catch (e) {}
       set({ cart: updatedCart });
     }
   }
