@@ -1,0 +1,29 @@
+# Render Blueprint Specification
+services:
+  - type: web
+    name: saha-backend-api
+    runtime: node
+    rootDir: customer_site/server
+    buildCommand: npm install
+    startCommand: node index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NOTIFICATION_EMAIL
+        value: myakalanagarjun09@gmail.com
+      - key: EMAIL_HOST
+        value: smtp.gmail.com
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_USER
+        value: myakalanagarjun09@gmail.com
+      - key: EMAIL_PASS
+        sync: false
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: CLIENT_URL
+        value: https://customersite-psi.vercel.app
+      - key: ADMIN_URL
+        value: https://adminsite-one.vercel.app
