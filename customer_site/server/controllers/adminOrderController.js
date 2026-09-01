@@ -53,9 +53,14 @@ exports.getAdminOrders = async (req, res) => {
 
     // Combine dbOrders and memoryOrders, eliminating duplicate IDs
     const allMem = getMergedMemoryOrders ? getMergedMemoryOrders() : (memoryOrders || []);
-    const dbOrderIds = new Set(dbOrders.map(o => String(o._id)));
+    const dbOrderIds = new Set();
+    dbOrders.forEach(o => {
+      if (o._id) dbOrderIds.add(String(o._id));
+      if (o.orderId) dbOrderIds.add(String(o.orderId));
+    });
+
     const filteredMemOrders = allMem.filter(mo => {
-      if (dbOrderIds.has(String(mo._id))) return false;
+      if (dbOrderIds.has(String(mo._id)) || (mo.orderId && dbOrderIds.has(String(mo.orderId)))) return false;
       if (status && status !== 'All') {
         if (status === 'Confirmed' && !(mo.orderStatus === 'Confirmed' || mo.orderStatus === 'Order Confirmed')) return false;
         if (status === 'Shipped' && !(mo.orderStatus === 'Shipped' || mo.orderStatus === 'Out for Delivery')) return false;
@@ -120,11 +125,21 @@ exports.getAdminOrderById = async (req, res) => {
 exports.updateAdminOrderStatus = async (req, res) => {
   try {
     const { status } = req.body;
-    let order = await Order.findById(req.params.id).catch(() => null);
+    const searchId = req.params.id;
+
+    // Search in MongoDB by _id or orderId
+    let order = await Order.findOne({
+      $or: [
+        ...(searchId.match(/^[0-9a-fA-F]{24}$/) ? [{ _id: searchId }] : []),
+        { _id: searchId },
+        { orderId: searchId }
+      ]
+    }).catch(() => null);
 
     if (order) {
       const previousStatus = order.orderStatus;
       order.orderStatus = status;
+      order.updatedAt = new Date();
       order.statusTimeline.push({
         status,
         updatedAt: new Date()
@@ -156,20 +171,30 @@ exports.updateAdminOrderStatus = async (req, res) => {
       }
 
       const updatedOrder = await order.save();
-      const memOrder = (memoryOrders || []).find(o => String(o._id) === String(req.params.id));
+
+      // Sync memoryOrders store & cached file
+      const allMem = (memoryOrders || []);
+      const memOrder = allMem.find(o => String(o._id) === String(searchId) || String(o.orderId) === String(searchId));
       if (memOrder) {
         memOrder.orderStatus = status;
+        memOrder.updatedAt = new Date();
         memOrder.statusTimeline = memOrder.statusTimeline || [];
         memOrder.statusTimeline.push({ status, updatedAt: new Date() });
       }
+      if (getMergedMemoryOrders) {
+        getMergedMemoryOrders();
+      }
+
       emitOrderEvent(req, 'order:updated', updatedOrder);
       return res.json(updatedOrder);
     }
 
     // Memory order fallback
-    const memOrder = (memoryOrders || []).find(o => String(o._id) === String(req.params.id));
+    const allMem = getMergedMemoryOrders ? getMergedMemoryOrders() : (memoryOrders || []);
+    const memOrder = allMem.find(o => String(o._id) === String(searchId) || String(o.orderId) === String(searchId));
     if (memOrder) {
       memOrder.orderStatus = status;
+      memOrder.updatedAt = new Date();
       memOrder.statusTimeline = memOrder.statusTimeline || [];
       memOrder.statusTimeline.push({ status, updatedAt: new Date() });
       if (status === 'Delivered') {
@@ -179,6 +204,9 @@ exports.updateAdminOrderStatus = async (req, res) => {
           memOrder.isPaid = true;
           memOrder.paidAt = new Date();
         }
+      }
+      if (getMergedMemoryOrders) {
+        getMergedMemoryOrders();
       }
       emitOrderEvent(req, 'order:updated', memOrder);
       return res.json(memOrder);

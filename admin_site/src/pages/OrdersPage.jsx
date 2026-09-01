@@ -183,7 +183,7 @@ const OrdersPage = () => {
                       <td className="py-3 px-4 font-bold text-white text-right">₹{order.totalPrice}</td>
                       <td className="py-3 px-4">
                         <select
-                          value={order.orderStatus || 'Confirmed'}
+                          value={order.orderStatus || 'Pending'}
                           onChange={(e) => handleStatusChange(order._id, e.target.value)}
                           className="bg-slate-900 border border-slate-700/80 text-xs text-slate-200 rounded-lg p-1.5 focus:outline-none focus:border-amber-500"
                         >
@@ -280,7 +280,7 @@ const OrdersPage = () => {
               <div className="flex items-center justify-between">
                 <StatusBadge type="order" status={selectedOrder.orderStatus} />
                 <select
-                  value={selectedOrder.orderStatus || 'Confirmed'}
+                  value={selectedOrder.orderStatus || 'Pending'}
                   onChange={(e) => handleStatusChange(selectedOrder._id, e.target.value)}
                   className="bg-slate-900 border border-slate-700 text-xs text-slate-100 rounded-xl px-3 py-1.5 focus:outline-none focus:border-amber-500"
                 >

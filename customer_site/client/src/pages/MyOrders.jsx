@@ -13,12 +13,35 @@ export default function MyOrders() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const socket = io('http://localhost:5000', {
+    const socketUrl = typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
+      ? 'https://customersite-psi.vercel.app'
+      : 'http://localhost:5000';
+
+    const socket = io(socketUrl, {
       transports: ['websocket', 'polling']
     });
 
     socket.on('order:updated', (updatedOrder) => {
-      setOrders(prev => prev.map(o => String(o._id) === String(updatedOrder._id) ? { ...o, ...updatedOrder } : o));
+      setOrders(prev => prev.map(o => {
+        const isMatch = String(o._id) === String(updatedOrder._id) ||
+          (o.orderId && updatedOrder.orderId && String(o.orderId) === String(updatedOrder.orderId)) ||
+          String(o._id) === String(updatedOrder.orderId) ||
+          String(o.orderId) === String(updatedOrder._id);
+        return isMatch ? { ...o, ...updatedOrder, orderStatus: updatedOrder.orderStatus } : o;
+      }));
+
+      try {
+        const local = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
+        const updatedLocal = local.map(o => {
+          const isMatch = String(o._id) === String(updatedOrder._id) ||
+            (o.orderId && updatedOrder.orderId && String(o.orderId) === String(updatedOrder.orderId)) ||
+            String(o._id) === String(updatedOrder.orderId) ||
+            String(o.orderId) === String(updatedOrder._id);
+          return isMatch ? { ...o, ...updatedOrder, orderStatus: updatedOrder.orderStatus } : o;
+        });
+        localStorage.setItem('urbanfit_customer_orders', JSON.stringify(updatedLocal));
+      } catch (e) {}
+
       if (updatedOrder.orderStatus === 'Cancelled') {
         toast.error(`Order #${String(updatedOrder.orderId || updatedOrder._id).substring(0, 10).toUpperCase()} has been Cancelled`);
       } else {
@@ -59,7 +82,7 @@ export default function MyOrders() {
 
         const refreshedLocal = await Promise.all(updatedLocal.map(async (lo) => {
           try {
-            const searchId = lo._id || lo.orderId;
+            const searchId = lo.orderId || lo._id;
             const single = await API.get(`/orders/${searchId}`);
             if (single.data && single.data.orderStatus) {
               return { ...lo, ...single.data };
@@ -72,8 +95,16 @@ export default function MyOrders() {
           localStorage.setItem('urbanfit_customer_orders', JSON.stringify(refreshedLocal));
         } catch (e) {}
 
-        const dbIds = new Set(apiOrders.map(o => String(o._id)));
-        const uniqueLocal = refreshedLocal.filter(o => !dbIds.has(String(o._id)));
+        const dbIds = new Set();
+        apiOrders.forEach(o => {
+          if (o._id) dbIds.add(String(o._id));
+          if (o.orderId) dbIds.add(String(o.orderId));
+        });
+
+        const uniqueLocal = refreshedLocal.filter(o =>
+          !dbIds.has(String(o._id)) && (!o.orderId || !dbIds.has(String(o.orderId)))
+        );
+
         const merged = [...apiOrders, ...uniqueLocal].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         setOrders(merged);
       } catch (err) {
@@ -219,7 +250,7 @@ export default function MyOrders() {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <span style={{ fontFamily: 'Outfit', fontSize: '18px', fontWeight: 900, color: '#fff' }}>
-                        Order #{ord._id.substring(0, 10).toUpperCase()}
+                        Order #{ord.orderId ? ord.orderId.replace(/^ORD-/, '') : ord._id.substring(0, 10).toUpperCase()}
                       </span>
                       <span
                         style={{

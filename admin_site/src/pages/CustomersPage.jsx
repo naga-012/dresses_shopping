@@ -15,9 +15,11 @@ const CustomersPage = () => {
     try {
       setLoading(true);
       const res = await api.get('/admin/customers', { params: { search } });
-      setCustomers(res.data.customers || []);
+      const list = res.data?.customers || (Array.isArray(res.data) ? res.data : []);
+      setCustomers(list);
     } catch (error) {
-      toast.error('Failed to load customers');
+      console.warn('Failed to load customers:', error);
+      setCustomers([]);
     } finally {
       setLoading(false);
     }

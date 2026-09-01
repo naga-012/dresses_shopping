@@ -13,12 +13,16 @@ export default function OrderTracking() {
   const statuses = ['Pending', 'Confirmed', 'Processing', 'Shipped', 'Out for Delivery', 'Delivered'];
 
   useEffect(() => {
-    const socket = io('http://localhost:5000', {
+    const socketUrl = typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
+      ? 'https://customersite-psi.vercel.app'
+      : 'http://localhost:5000';
+
+    const socket = io(socketUrl, {
       transports: ['websocket', 'polling']
     });
 
     socket.on('order:updated', (updatedOrder) => {
-      if (String(updatedOrder._id) === String(id)) {
+      if (String(updatedOrder._id) === String(id) || String(updatedOrder.orderId) === String(id)) {
         setOrder(prev => ({ ...prev, ...updatedOrder }));
         if (updatedOrder.orderStatus === 'Cancelled') {
           toast.error('Order status updated to Cancelled');
