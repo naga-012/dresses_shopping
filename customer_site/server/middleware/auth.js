@@ -3,16 +3,18 @@ const User = require('../models/User');
 const mongoose = require('mongoose');
 
 const checkIsAdminContext = (req, decoded = {}) => {
-  const referer = String(req.headers.referer || '').toLowerCase();
-  const origin = String(req.headers.origin || '').toLowerCase();
-  const authHeader = String(req.headers.authorization || '').toLowerCase();
-  const path = String(req.originalUrl || req.url || '').toLowerCase();
+  const safeDecoded = decoded || {};
+  const headers = req?.headers || {};
+  const referer = String(headers.referer || '').toLowerCase();
+  const origin = String(headers.origin || '').toLowerCase();
+  const authHeader = String(headers.authorization || '').toLowerCase();
+  const path = String(req?.originalUrl || req?.url || '').toLowerCase();
 
   return (
-    decoded.role === 'admin' ||
-    decoded.isAdmin === true ||
-    decoded.email === 'myakalanagarjun@gmail.com' ||
-    (decoded.id && String(decoded.id).includes('admin')) ||
+    safeDecoded.role === 'admin' ||
+    safeDecoded.isAdmin === true ||
+    safeDecoded.email === 'myakalanagarjun@gmail.com' ||
+    (safeDecoded.id && String(safeDecoded.id).includes('admin')) ||
     referer.includes('admin') ||
     origin.includes('admin') ||
     authHeader.includes('admin') ||
