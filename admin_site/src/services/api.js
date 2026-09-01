@@ -2,10 +2,13 @@ import axios from 'axios';
 
 const getBaseURL = () => {
   if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL;
+  if (typeof window !== 'undefined' && window.location.hostname.includes('render.com')) {
+    return 'https://dresses-shopping.onrender.com/api';
+  }
   if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
     return 'https://customersite-psi.vercel.app/api';
   }
-  return 'http://localhost:5000/api';
+  return 'https://customersite-psi.vercel.app/api';
 };
 
 const api = axios.create({
