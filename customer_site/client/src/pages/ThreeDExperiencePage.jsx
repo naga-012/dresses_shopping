@@ -45,9 +45,10 @@ export default function ThreeDExperiencePage() {
   const fetchProducts = async () => {
     try {
       const res = await API.get('/products');
-      setProducts(res.data);
-      if (res.data.length > 0 && !selectedProduct) {
-        setSelectedProduct(res.data[0]);
+      const list = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.products) ? res.data.products : []);
+      setProducts(list);
+      if (list.length > 0 && !selectedProduct) {
+        setSelectedProduct(list[0]);
       }
     } catch (err) {
       console.error(err);
@@ -60,7 +61,7 @@ export default function ThreeDExperiencePage() {
     return url.startsWith('/') ? url : `/${url}`;
   };
 
-  const rawImages = selectedProduct?.images && selectedProduct.images.length > 0 ? selectedProduct.images : [
+  const rawImages = Array.isArray(selectedProduct?.images) && selectedProduct.images.length > 0 ? selectedProduct.images : [
     '/uploads/cap1.png',
     '/uploads/cap2.png',
     '/uploads/cap3.png',
@@ -68,7 +69,7 @@ export default function ThreeDExperiencePage() {
     '/uploads/cap5.png'
   ];
 
-  const productImages = rawImages.map(getImageUrl);
+  const productImages = (Array.isArray(rawImages) ? rawImages : []).map(getImageUrl);
 
   const handleNextSlide = () => {
     setActiveImageIndex((prev) => (prev + 1) % productImages.length);

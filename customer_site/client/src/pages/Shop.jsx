@@ -81,8 +81,9 @@ export default function Shop() {
       if (searchQuery) url += `search=${searchQuery}&`;
 
       const res = await API.get(url);
-      if (res.data && res.data.length > 0) {
-        setProducts(res.data);
+      const raw = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.products) ? res.data.products : null);
+      if (raw && raw.length > 0) {
+        setProducts(raw);
       } else {
         // Filter local fallback products
         let list = FALLBACK_PRODUCTS;

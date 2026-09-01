@@ -24,9 +24,10 @@ export default function Home() {
     const fetchData = async () => {
       try {
         const prodRes = await API.get('/products');
-        if (prodRes.data && prodRes.data.length > 0) {
-          setProducts(prodRes.data);
-          if (!selectedProduct) setSelectedProduct(prodRes.data[0]);
+        const list = Array.isArray(prodRes.data) ? prodRes.data : (Array.isArray(prodRes.data?.products) ? prodRes.data.products : FALLBACK_PRODUCTS);
+        if (list && list.length > 0) {
+          setProducts(list);
+          if (!selectedProduct) setSelectedProduct(list[0]);
         } else {
           setProducts(FALLBACK_PRODUCTS);
           if (!selectedProduct) setSelectedProduct(FALLBACK_PRODUCTS[0]);

@@ -80,7 +80,7 @@ export default function ProductDetail3D() {
     return url.startsWith('/') ? url : `/${url}`;
   };
 
-  const rawImages = product?.images && product.images.length > 0 ? product.images : [
+  const rawImages = Array.isArray(product?.images) && product.images.length > 0 ? product.images : [
     '/uploads/cap1.png',
     '/uploads/cap2.png',
     '/uploads/cap3.png',
@@ -88,7 +88,7 @@ export default function ProductDetail3D() {
     '/uploads/cap5.png'
   ];
 
-  const productImages = rawImages.map(getImageUrl);
+  const productImages = (Array.isArray(rawImages) ? rawImages : []).map(getImageUrl);
 
   const handleNextSlide = () => {
     setActiveImageIndex((prev) => (prev + 1) % productImages.length);
