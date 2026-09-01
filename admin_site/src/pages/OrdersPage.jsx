@@ -67,10 +67,16 @@ const OrdersPage = () => {
   const handleStatusChange = async (orderId, newStatus) => {
     try {
       const res = await api.patch(`/admin/orders/${orderId}/status`, { status: newStatus });
+      const updatedObj = res.data?.order || res.data;
       toast.success(`Order status updated to ${newStatus}`);
-      setOrders(orders.map(o => o._id === orderId ? res.data : o));
-      if (selectedOrder && selectedOrder._id === orderId) {
-        setSelectedOrder(res.data);
+      setOrders(prev => prev.map(o => {
+        const isMatch = String(o._id) === String(orderId) ||
+          String(o.orderId) === String(orderId) ||
+          (o.orderId && String(o.orderId).replace(/^ORD-/, '') === String(orderId).replace(/^ORD-/, ''));
+        return isMatch ? { ...o, ...updatedObj, orderStatus: newStatus } : o;
+      }));
+      if (selectedOrder && (String(selectedOrder._id) === String(orderId) || String(selectedOrder.orderId) === String(orderId))) {
+        setSelectedOrder(prev => ({ ...prev, ...updatedObj, orderStatus: newStatus }));
       }
     } catch (error) {
       toast.error('Failed to update order status');

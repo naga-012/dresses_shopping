@@ -55,35 +55,48 @@ exports.getAdminOrders = async (req, res) => {
       console.warn('DB find orders fallback:', e.message);
     }
 
-    // Combine dbOrders and memoryOrders, eliminating duplicate IDs
+    // Combine dbOrders and memoryOrders seamlessly, preserving updated status
     const allMem = getMergedMemoryOrders ? getMergedMemoryOrders() : (memoryOrders || []);
-    const dbOrderIds = new Set();
-    dbOrders.forEach(o => {
-      if (o._id) dbOrderIds.add(String(o._id));
-      if (o.orderId) dbOrderIds.add(String(o.orderId));
-    });
+    const orderMap = new Map();
 
-    const filteredMemOrders = allMem.filter(mo => {
-      if (dbOrderIds.has(String(mo._id)) || (mo.orderId && dbOrderIds.has(String(mo.orderId)))) return false;
+    [...dbOrders, ...allMem].forEach(o => {
+      if (!o) return;
+      const rawKey = String(o.orderId || o._id);
+      const key = rawKey.replace(/^ORD-/, '');
+      
+      // Filter by status if specified
       if (status && status !== 'All') {
-        if (status === 'Confirmed' && !(mo.orderStatus === 'Confirmed' || mo.orderStatus === 'Order Confirmed')) return false;
-        if (status === 'Shipped' && !(mo.orderStatus === 'Shipped' || mo.orderStatus === 'Out for Delivery')) return false;
-        if (status !== 'Confirmed' && status !== 'Shipped' && mo.orderStatus !== status) return false;
+        const matchConfirmed = status === 'Confirmed' && (o.orderStatus === 'Confirmed' || o.orderStatus === 'Order Confirmed');
+        const matchShipped = status === 'Shipped' && (o.orderStatus === 'Shipped' || o.orderStatus === 'Out for Delivery');
+        const matchOther = status !== 'Confirmed' && status !== 'Shipped' && o.orderStatus === status;
+        if (!matchConfirmed && !matchShipped && !matchOther) return;
       }
+
+      // Filter by search if specified
       if (search) {
         const s = search.toLowerCase();
-        const matchId = String(mo.orderId || mo._id).toLowerCase().includes(s);
-        const matchName = String(mo.shippingAddress?.fullName || '').toLowerCase().includes(s);
-        const matchPhone = String(mo.shippingAddress?.phone || '').toLowerCase().includes(s);
-        if (!matchId && !matchName && !matchPhone) return false;
+        const matchId = String(o.orderId || o._id).toLowerCase().includes(s);
+        const matchName = String(o.shippingAddress?.fullName || '').toLowerCase().includes(s);
+        const matchPhone = String(o.shippingAddress?.phone || '').toLowerCase().includes(s);
+        if (!matchId && !matchName && !matchPhone) return;
       }
-      return true;
+
+      if (!orderMap.has(key)) {
+        orderMap.set(key, o);
+      } else {
+        const existing = orderMap.get(key);
+        if (o.orderStatus && o.orderStatus !== 'Pending' && existing.orderStatus === 'Pending') {
+          orderMap.set(key, { ...existing, ...o, orderStatus: o.orderStatus });
+        } else if (new Date(o.updatedAt || 0) > new Date(existing.updatedAt || 0)) {
+          orderMap.set(key, { ...existing, ...o });
+        }
+      }
     });
 
-    const allOrders = [...dbOrders, ...filteredMemOrders].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-    const total = allOrders.length;
+    const combinedOrders = Array.from(orderMap.values()).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    const total = combinedOrders.length;
     const startIndex = (Number(page) - 1) * Number(limit);
-    const paginatedOrders = allOrders.slice(startIndex, startIndex + Number(limit));
+    const paginatedOrders = combinedOrders.slice(startIndex, startIndex + Number(limit));
 
     return res.json({
       orders: paginatedOrders,
