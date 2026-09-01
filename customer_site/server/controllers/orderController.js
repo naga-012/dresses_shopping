@@ -401,14 +401,27 @@ exports.getMyOrders = async (req, res) => {
       if (!o) return;
       const rawKey = String(o.orderId || o._id);
       const key = rawKey.replace(/^ORD-/, '');
+      const statusPriority = {
+        'Cancelled': 5,
+        'Delivered': 4,
+        'Shipped': 3,
+        'Out for Delivery': 3,
+        'Processing': 2,
+        'Confirmed': 1,
+        'Order Confirmed': 1,
+        'Pending': 0
+      };
+
       if (!orderMap.has(key)) {
         orderMap.set(key, o);
       } else {
         const existing = orderMap.get(key);
-        // Prefer updated orderStatus if status changed from Pending
-        if (o.orderStatus && o.orderStatus !== 'Pending') {
+        const existingPriority = statusPriority[existing.orderStatus] || 0;
+        const newPriority = statusPriority[o.orderStatus] || 0;
+
+        if (newPriority > existingPriority) {
           orderMap.set(key, { ...existing, ...o, orderStatus: o.orderStatus });
-        } else if (new Date(o.updatedAt || 0) > new Date(existing.updatedAt || 0)) {
+        } else if (newPriority === existingPriority && new Date(o.updatedAt || 0) > new Date(existing.updatedAt || 0)) {
           orderMap.set(key, { ...existing, ...o });
         }
       }
