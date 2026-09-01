@@ -24,62 +24,126 @@ const seedCustomers = [
   }
 ];
 
-// @desc Get all registered customers with aggregate order stats
-// @route GET /api/admin/customers
+/**
+ * @desc Get all registered & order-based customers with aggregated purchase stats
+ * @route GET /api/admin/customers
+ */
 exports.getAdminCustomers = async (req, res) => {
   try {
     const { search, page = 1, limit = 50 } = req.query;
-    let query = { role: { $ne: 'admin' } };
 
-    if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-        { phone: { $regex: search, $options: 'i' } }
-      ];
-    }
-
-    let users = [];
+    // 1. Fetch Registered DB Users (Only if Mongoose is fully connected: readyState === 1)
+    let dbCustomersWithStats = [];
     try {
-      if (mongoose.connection.readyState >= 1) {
-        users = await User.find(query)
+      if (mongoose.connection.readyState === 1) {
+        let userQuery = { role: { $ne: 'admin' } };
+        if (search && typeof search === 'string' && search.trim()) {
+          const sanitized = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          userQuery.$or = [
+            { name: { $regex: sanitized, $options: 'i' } },
+            { email: { $regex: sanitized, $options: 'i' } },
+            { phone: { $regex: sanitized, $options: 'i' } }
+          ];
+        }
+
+        const users = await User.find(userQuery)
           .select('-password')
           .sort('-createdAt')
           .limit(Number(limit))
+          .maxTimeMS(2000)
           .catch(() => []);
+
+        if (users && users.length > 0) {
+          dbCustomersWithStats = await Promise.all(
+            users.map(async (user) => {
+              const uObj = user.toObject ? user.toObject() : user;
+              const userOrders = await Order.find({
+                $or: [
+                  { user: user._id },
+                  ...(user.phone ? [{ 'shippingAddress.phone': user.phone }] : []),
+                  ...(user.email ? [{ 'shippingAddress.email': user.email }] : [])
+                ],
+                orderStatus: { $ne: 'Cancelled' }
+              })
+                .maxTimeMS(2000)
+                .catch(() => []);
+
+              const totalOrders = userOrders.length;
+              const totalSpend = userOrders.reduce((sum, o) => sum + (Number(o.totalPrice) || 0), 0);
+
+              return {
+                ...uObj,
+                totalOrders,
+                totalSpend
+              };
+            })
+          );
+        }
       }
     } catch (e) {
-      console.warn('DB find users fallback:', e.message);
+      console.warn('[getAdminCustomers] DB find users error:', e.message);
     }
 
-    let dbCustomersWithStats = [];
-    if (users && users.length > 0) {
-      dbCustomersWithStats = await Promise.all(
-        users.map(async (user) => {
-          const userOrders = await Order.find({ user: user._id, orderStatus: { $ne: 'Cancelled' } }).catch(() => []);
-          const totalOrders = userOrders.length;
-          const totalSpend = userOrders.reduce((sum, o) => sum + (o.totalPrice || 0), 0);
-          return {
-            ...user.toObject(),
-            totalOrders,
-            totalSpend
-          };
-        })
-      );
-    }
+    // 2. Fetch All Orders (DB + Cache/Memory)
+    const memOrders = getMergedMemoryOrders ? getMergedMemoryOrders() : (memoryOrders || []);
+    let dbOrders = [];
+    try {
+      if (mongoose.connection.readyState === 1) {
+        dbOrders = await Order.find({}).sort('-createdAt').maxTimeMS(2000).catch(() => []);
+      }
+    } catch (e) {}
 
-    // Extract fallback customers from order history
-    const allOrders = getMergedMemoryOrders ? getMergedMemoryOrders() : (memoryOrders || []);
+    const orderDedupeMap = new Map();
+    [...dbOrders, ...memOrders].forEach(o => {
+      if (!o) return;
+      const key = String(o._id || o.orderId);
+      if (!orderDedupeMap.has(key)) {
+        orderDedupeMap.set(key, o);
+      }
+    });
+
+    const combinedOrders = Array.from(orderDedupeMap.values());
+
+    // 3. Extract Customer Profiles from Order History
     const orderCustomerMap = new Map();
 
-    seedCustomers.forEach(sc => orderCustomerMap.set(sc._id, { ...sc }));
+    // Add seed customers
+    seedCustomers.forEach(sc => {
+      if (sc && sc._id) orderCustomerMap.set(String(sc._id), { ...sc });
+    });
 
-    allOrders.forEach(ord => {
+    combinedOrders.forEach(ord => {
       if (!ord) return;
-      const custName = ord.shippingAddress?.fullName || ord.user?.name || 'Customer Member';
-      const custEmail = ord.shippingAddress?.email || ord.user?.email || `${custName.toLowerCase().replace(/[^a-z0-9]/g, '')}@saha.com`;
-      const custPhone = ord.shippingAddress?.phone || ord.user?.phone || 'N/A';
-      const mapKey = String(ord.user?._id || ord.user || custName + '_' + custPhone);
+
+      const address = ord.shippingAddress || {};
+      const userObj = (ord.user && typeof ord.user === 'object') ? ord.user : {};
+
+      const rawName = address.fullName || address.name || userObj.name || 'Customer Member';
+      const custName = typeof rawName === 'string' ? rawName.trim() : String(rawName);
+
+      const rawEmail = address.email || userObj.email;
+      const custEmail = (typeof rawEmail === 'string' && rawEmail.includes('@'))
+        ? rawEmail.trim().toLowerCase()
+        : `${custName.toLowerCase().replace(/[^a-z0-9]/g, '')}@saha.com`;
+
+      const rawPhone = address.phone || address.mobile || userObj.phone;
+      const custPhone = (typeof rawPhone === 'string' && rawPhone.trim())
+        ? rawPhone.trim()
+        : 'N/A';
+
+      // Generate robust map key
+      let mapKey = '';
+      if (custEmail && custEmail.includes('@') && !custEmail.endsWith('@saha.com')) {
+        mapKey = custEmail;
+      } else if (custPhone && custPhone !== 'N/A' && custPhone.length >= 6) {
+        mapKey = custPhone;
+      } else if (userObj._id) {
+        mapKey = String(userObj._id);
+      } else if (typeof ord.user === 'string' && ord.user.trim()) {
+        mapKey = ord.user.trim();
+      } else {
+        mapKey = custName.toLowerCase().replace(/[^a-z0-9]/g, '') + '_' + custPhone;
+      }
 
       if (!orderCustomerMap.has(mapKey)) {
         orderCustomerMap.set(mapKey, {
@@ -87,47 +151,64 @@ exports.getAdminCustomers = async (req, res) => {
           name: custName,
           email: custEmail,
           phone: custPhone,
-          createdAt: ord.createdAt || new Date(),
+          createdAt: ord.createdAt ? new Date(ord.createdAt) : new Date(),
           totalOrders: 0,
           totalSpend: 0
         });
       }
+
       const cust = orderCustomerMap.get(mapKey);
       if (ord.orderStatus !== 'Cancelled') {
         cust.totalOrders = (cust.totalOrders || 0) + 1;
-        cust.totalSpend = (cust.totalSpend || 0) + (ord.totalPrice || 0);
+        cust.totalSpend = (cust.totalSpend || 0) + (Number(ord.totalPrice) || 0);
+      }
+      if (ord.createdAt && new Date(ord.createdAt) < new Date(cust.createdAt)) {
+        cust.createdAt = new Date(ord.createdAt);
       }
     });
 
     const fallbackCustomers = Array.from(orderCustomerMap.values());
 
-    // Merge DB customers with fallback order customers
-    const combinedMap = new Map();
+    // 4. Merge DB Registered Users with Order Customers
+    const finalMap = new Map();
     [...dbCustomersWithStats, ...fallbackCustomers].forEach(c => {
-      const key = (c.email && c.email.includes('@')) ? c.email.toLowerCase() : (c.phone || c.name || c._id);
-      if (!combinedMap.has(key)) {
-        combinedMap.set(key, c);
+      if (!c) return;
+      const key = (typeof c.email === 'string' && c.email.includes('@'))
+        ? c.email.toLowerCase()
+        : (c.phone && c.phone !== 'N/A')
+          ? c.phone
+          : String(c._id || c.name);
+
+      if (!finalMap.has(key)) {
+        finalMap.set(key, c);
       } else {
-        const existing = combinedMap.get(key);
-        combinedMap.set(key, {
+        const existing = finalMap.get(key);
+        finalMap.set(key, {
           ...existing,
           ...c,
+          name: (c.name && c.name !== 'Customer Member') ? c.name : existing.name,
+          phone: (c.phone && c.phone !== 'N/A') ? c.phone : existing.phone,
+          email: (c.email && c.email.includes('@')) ? c.email : existing.email,
           totalOrders: Math.max(existing.totalOrders || 0, c.totalOrders || 0),
           totalSpend: Math.max(existing.totalSpend || 0, c.totalSpend || 0)
         });
       }
     });
 
-    let finalCustomers = Array.from(combinedMap.values());
+    let finalCustomers = Array.from(finalMap.values());
 
-    if (search) {
-      const s = search.toLowerCase();
+    // 5. Apply Search Filter
+    if (search && typeof search === 'string' && search.trim()) {
+      const s = search.trim().toLowerCase();
       finalCustomers = finalCustomers.filter(c =>
         (c.name || '').toLowerCase().includes(s) ||
         (c.email || '').toLowerCase().includes(s) ||
         (c.phone || '').toLowerCase().includes(s)
       );
     }
+
+    // Sort by latest created date
+    finalCustomers.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
 
     return res.json({
       customers: finalCustomers,
@@ -136,7 +217,7 @@ exports.getAdminCustomers = async (req, res) => {
       total: finalCustomers.length
     });
   } catch (error) {
-    console.error('getAdminCustomers error:', error);
+    console.error('[getAdminCustomers] Error:', error);
     return res.json({
       customers: seedCustomers,
       page: 1,
@@ -146,33 +227,44 @@ exports.getAdminCustomers = async (req, res) => {
   }
 };
 
-// @desc Get customer detail with order history
-// @route GET /api/admin/customers/:id
+/**
+ * @desc Get detailed customer information with full order history
+ * @route GET /api/admin/customers/:id
+ */
 exports.getAdminCustomerById = async (req, res) => {
   try {
     const custId = req.params.id;
     let user = null;
-    if (mongoose.Types.ObjectId.isValid(custId) && mongoose.connection.readyState >= 1) {
-      user = await User.findById(custId).select('-password').catch(() => null);
+
+    if (mongoose.Types.ObjectId.isValid(custId) && mongoose.connection.readyState === 1) {
+      user = await User.findById(custId).select('-password').maxTimeMS(2000).catch(() => null);
     }
 
-    const allOrders = getMergedMemoryOrders ? getMergedMemoryOrders() : (memoryOrders || []);
-    let customerOrders = [];
-
-    try {
-      if (mongoose.connection.readyState >= 1 && user) {
-        customerOrders = await Order.find({ user: user._id }).sort('-createdAt').catch(() => []);
-      }
-    } catch (e) {}
-
-    if (!customerOrders || customerOrders.length === 0) {
-      customerOrders = allOrders.filter(o =>
-        String(o.user?._id || o.user) === String(custId) ||
-        String(o.shippingAddress?.phone) === String(custId) ||
-        String(o.shippingAddress?.email) === String(custId) ||
-        String(o._id) === String(custId)
-      );
+    const memOrders = getMergedMemoryOrders ? getMergedMemoryOrders() : (memoryOrders || []);
+    let dbOrders = [];
+    if (mongoose.connection.readyState === 1) {
+      dbOrders = await Order.find({}).sort('-createdAt').maxTimeMS(2000).catch(() => []);
     }
+
+    const orderDedupeMap = new Map();
+    [...dbOrders, ...memOrders].forEach(o => {
+      if (!o) return;
+      const key = String(o._id || o.orderId);
+      if (!orderDedupeMap.has(key)) orderDedupeMap.set(key, o);
+    });
+
+    const allOrders = Array.from(orderDedupeMap.values());
+
+    const customerOrders = allOrders.filter(o => {
+      if (!o) return false;
+      const matchUserId = String(o.user?._id || o.user) === String(custId);
+      const matchPhone = String(o.shippingAddress?.phone || o.shippingAddress?.mobile) === String(custId);
+      const matchEmail = String(o.shippingAddress?.email || '').toLowerCase() === String(custId).toLowerCase();
+      const matchOrderId = String(o._id || o.orderId) === String(custId);
+      const matchName = String(o.shippingAddress?.fullName || '').toLowerCase() === String(custId).toLowerCase();
+
+      return matchUserId || matchPhone || matchEmail || matchOrderId || matchName;
+    });
 
     if (!user) {
       const sample = customerOrders[0];
@@ -187,7 +279,7 @@ exports.getAdminCustomerById = async (req, res) => {
 
     const totalSpend = customerOrders
       .filter(o => o.orderStatus !== 'Cancelled')
-      .reduce((sum, o) => sum + (o.totalPrice || 0), 0);
+      .reduce((sum, o) => sum + (Number(o.totalPrice) || 0), 0);
 
     return res.json({
       customer: user,
@@ -196,6 +288,7 @@ exports.getAdminCustomerById = async (req, res) => {
       totalSpend
     });
   } catch (error) {
+    console.error('[getAdminCustomerById] Error:', error);
     return res.status(500).json({ message: error.message });
   }
 };

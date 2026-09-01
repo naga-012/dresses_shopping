@@ -44,9 +44,13 @@ exports.getAdminOrders = async (req, res) => {
 
     let dbOrders = [];
     try {
-      dbOrders = await Order.find(query)
-        .populate('user', 'name email phone')
-        .sort('-createdAt');
+      if (mongoose.connection.readyState === 1) {
+        dbOrders = await Order.find(query)
+          .populate('user', 'name email phone')
+          .sort('-createdAt')
+          .maxTimeMS(2000)
+          .catch(() => []);
+      }
     } catch (e) {
       console.warn('DB find orders fallback:', e.message);
     }

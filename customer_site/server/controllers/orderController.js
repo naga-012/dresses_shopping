@@ -1,6 +1,7 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const mongoose = require('mongoose');
+const { sendOrderNotificationEmail } = require('../utils/emailService');
 
 const fs = require('fs');
 const path = require('path');
@@ -141,7 +142,7 @@ exports.syncOrderCache = async (req, res) => {
       getMergedMemoryOrders();
 
       // Persist to MongoDB if connection is ready and order isn't in DB yet
-      if (mongoose.connection.readyState >= 1) {
+      if (mongoose.connection.readyState === 1) {
         try {
           const searchId = orderData._id || orderData.orderId;
           const exists = await Order.findOne({
@@ -189,6 +190,9 @@ exports.syncOrderCache = async (req, res) => {
           console.warn('Sync order DB save warning:', e.message);
         }
       }
+
+      // Trigger email notification asynchronously
+      sendOrderNotificationEmail(orderData).catch(err => console.error('Email notification error:', err));
 
       return res.json({ success: true, order: orderData });
     }
@@ -247,7 +251,7 @@ exports.addOrderItems = async (req, res) => {
     });
 
     let createdOrder = null;
-    if (mongoose.connection.readyState >= 1) {
+    if (mongoose.connection.readyState === 1) {
       createdOrder = await order.save().catch((err) => {
         console.warn('DB order save fallback:', err.message);
         return null;
@@ -281,6 +285,9 @@ exports.addOrderItems = async (req, res) => {
         io.emit('order:created', createdOrder);
       }
 
+      // Trigger email notification asynchronously
+      sendOrderNotificationEmail(createdOrder).catch(err => console.error('Email notification error:', err));
+
       return res.status(201).json(createdOrder);
     }
 
@@ -309,6 +316,9 @@ exports.addOrderItems = async (req, res) => {
       io.emit('order:created', mockOrder);
     }
 
+    // Trigger email notification asynchronously
+    sendOrderNotificationEmail(mockOrder).catch(err => console.error('Email notification error:', err));
+
     return res.status(201).json(mockOrder);
   } catch (error) {
     console.error('addOrderItems error:', error);
@@ -334,6 +344,9 @@ exports.addOrderItems = async (req, res) => {
     if (io) {
       io.emit('order:created', fallbackOrder);
     }
+
+    // Trigger email notification asynchronously
+    sendOrderNotificationEmail(fallbackOrder).catch(err => console.error('Email notification error:', err));
 
     return res.status(201).json(fallbackOrder);
   }

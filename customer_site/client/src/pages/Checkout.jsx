@@ -13,6 +13,7 @@ export default function Checkout() {
 
   const [address, setAddress] = useState({
     fullName: user?.name || '',
+    email: user?.email || '',
     street: '',
     city: '',
     state: '',
@@ -307,7 +308,7 @@ export default function Checkout() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <div style={{ gridColumn: 'span 2' }}>
+              <div>
                 <label style={{ fontSize: '12px', color: '#aaa', fontWeight: 600 }}>Full Name</label>
                 <input
                   type="text"
@@ -315,6 +316,18 @@ export default function Checkout() {
                   placeholder="Enter full name"
                   value={address.fullName}
                   onChange={(e) => setAddress({ ...address, fullName: e.target.value })}
+                  style={{ width: '100%', background: '#141419', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '12px', borderRadius: '8px', marginTop: '4px', outline: 'none', fontSize: '13px' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: '12px', color: '#aaa', fontWeight: 600 }}>Email Address (for order receipt)</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="Enter email for order confirmation"
+                  value={address.email}
+                  onChange={(e) => setAddress({ ...address, email: e.target.value })}
                   style={{ width: '100%', background: '#141419', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '12px', borderRadius: '8px', marginTop: '4px', outline: 'none', fontSize: '13px' }}
                 />
               </div>
