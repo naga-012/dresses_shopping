@@ -13,9 +13,11 @@ export default function MyOrders() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const socketUrl = typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
-      ? 'https://customersite-psi.vercel.app'
-      : 'http://localhost:5000';
+    const socketUrl = typeof window !== 'undefined' && window.location.hostname.includes('render.com')
+      ? 'https://saha-backend-api.onrender.com'
+      : typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
+        ? 'https://customersite-psi.vercel.app'
+        : 'http://localhost:5000';
 
     const socket = io(socketUrl, {
       transports: ['websocket', 'polling']

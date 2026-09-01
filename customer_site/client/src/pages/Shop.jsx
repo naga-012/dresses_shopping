@@ -28,7 +28,13 @@ export default function Shop() {
   const categories = ['All', '🔥 New Arrivals', '❤️ Liked Items', 'Shirts', 'T-Shirts', 'Hoodies', 'Jackets', 'Blazers', 'Jeans', 'Pants', 'Shoes', 'Traditional Wear'];
 
   useEffect(() => {
-    const socket = io('http://localhost:5000', {
+    const socketUrl = typeof window !== 'undefined' && window.location.hostname.includes('render.com')
+      ? 'https://saha-backend-api.onrender.com'
+      : typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
+        ? 'https://customersite-psi.vercel.app'
+        : 'http://localhost:5000';
+
+    const socket = io(socketUrl, {
       transports: ['websocket', 'polling']
     });
 
