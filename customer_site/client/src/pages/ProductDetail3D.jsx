@@ -35,8 +35,8 @@ export default function ProductDetail3D() {
     setSelectedColor
   } = useUIStore();
 
-  const { addToCart, decrementProduct, getProductQty } = useCartStore();
-  const { toggleWishlist, isWishlisted } = useWishlistStore();
+  const { cart, addToCart, decrementProduct, getProductQty } = useCartStore();
+  const { wishlist, toggleWishlist, isWishlisted } = useWishlistStore();
 
   const [product, setProduct] = useState(() => FALLBACK_PRODUCTS.find(p => p._id === id || p.slug === id) || FALLBACK_PRODUCTS[0]);
   const [loading, setLoading] = useState(false);

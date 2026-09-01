@@ -14,8 +14,8 @@ export default function Shop() {
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const { selectedProduct, setSelectedProduct, setActiveCategory } = useUIStore();
-  const { addToCart, getProductQty, decrementProduct } = useCartStore();
-  const { toggleWishlist, isWishlisted } = useWishlistStore();
+  const { cart, addToCart, getProductQty, decrementProduct } = useCartStore();
+  const { wishlist, toggleWishlist, isWishlisted } = useWishlistStore();
 
   const [products, setProducts] = useState(FALLBACK_PRODUCTS);
   const [loading, setLoading] = useState(false);

@@ -32,7 +32,7 @@ export default function ThreeDExperiencePage() {
     setSelectedColor
   } = useUIStore();
 
-  const { addToCart, decrementProduct, getProductQty } = useCartStore();
+  const { cart, addToCart, decrementProduct, getProductQty } = useCartStore();
 
   const [products, setProducts] = useState([]);
   const [activeImageIndex, setActiveImageIndex] = useState(0);

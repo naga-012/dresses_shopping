@@ -12,8 +12,8 @@ import { FALLBACK_PRODUCTS } from '../data/fallbackProducts';
 export default function Home() {
   const navigate = useNavigate();
   const { activeCategory, setActiveCategory, selectedProduct, setSelectedProduct } = useUIStore();
-  const { addToCart, getProductQty, decrementProduct } = useCartStore();
-  const { toggleWishlist, isWishlisted } = useWishlistStore();
+  const { cart, addToCart, getProductQty, decrementProduct } = useCartStore();
+  const { wishlist, toggleWishlist, isWishlisted } = useWishlistStore();
 
   const [products, setProducts] = useState(FALLBACK_PRODUCTS);
   const [loading, setLoading] = useState(false);
