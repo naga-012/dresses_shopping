@@ -14,13 +14,20 @@ export const useWishlistStore = create((set, get) => ({
   wishlist: getInitialWishlist(),
 
   toggleWishlist: (product) => {
-    if (!product || !product._id) return;
+    const targetId = product?._id || product?.id;
+    if (!targetId) return;
     const currentWishlist = get().wishlist || [];
-    const exists = currentWishlist.some((item) => (item._id || item) === product._id);
+    const exists = currentWishlist.some((item) => {
+      const itemId = item?._id || item?.id || item;
+      return itemId && String(itemId) === String(targetId);
+    });
 
     let updatedWishlist;
     if (exists) {
-      updatedWishlist = currentWishlist.filter((item) => (item._id || item) !== product._id);
+      updatedWishlist = currentWishlist.filter((item) => {
+        const itemId = item?._id || item?.id || item;
+        return itemId && String(itemId) !== String(targetId);
+      });
       toast.success(`Removed ${product.name || 'item'} from Wishlist`, {
         icon: '💔'
       });
@@ -38,7 +45,10 @@ export const useWishlistStore = create((set, get) => ({
   isWishlisted: (productId) => {
     if (!productId) return false;
     const list = get().wishlist || [];
-    return list.some((item) => (item?._id || item) === productId);
+    return list.some((item) => {
+      const itemId = item?._id || item?.id || item;
+      return itemId && String(itemId) === String(productId);
+    });
   },
 
   getWishlistCount: () => {

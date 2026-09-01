@@ -10,6 +10,11 @@ const getInitialCart = () => {
   }
 };
 
+const getProductId = (product) => {
+  if (!product) return null;
+  return product._id || product.id || null;
+};
+
 export const useCartStore = create((set, get) => ({
   cart: getInitialCart(),
   isCartOpen: false,
@@ -18,11 +23,17 @@ export const useCartStore = create((set, get) => ({
   
   addToCart: (product, selectedSize = 'M', selectedColor = null, quantityToAdd = 1) => {
     const currentCart = get().cart;
+    const targetId = getProductId(product);
+    if (!targetId) return;
+
     const colorName = selectedColor ? selectedColor.name : (product.colors?.[0]?.name || 'Default');
     const colorHex = selectedColor ? selectedColor.hex : (product.colors?.[0]?.hex || '#000000');
 
     const existingIndex = currentCart.findIndex(
-      (item) => item.product._id === product._id && item.size === selectedSize && item.color === colorName
+      (item) => {
+        const itemId = getProductId(item.product);
+        return itemId && String(itemId) === String(targetId) && item.size === selectedSize && item.color === colorName;
+      }
     );
 
     let updatedCart;
@@ -83,12 +94,22 @@ export const useCartStore = create((set, get) => ({
   },
 
   getProductQty: (productId) => {
-    return get().cart.filter((item) => item.product?._id === productId).reduce((total, item) => total + item.qty, 0);
+    if (!productId) return 0;
+    return (get().cart || [])
+      .filter((item) => {
+        const itemId = getProductId(item.product);
+        return itemId && String(itemId) === String(productId);
+      })
+      .reduce((total, item) => total + (item?.qty || 0), 0);
   },
 
   decrementProduct: (productId) => {
+    if (!productId) return;
     const currentCart = get().cart;
-    const existingIndex = currentCart.findIndex((item) => item.product?._id === productId);
+    const existingIndex = currentCart.findIndex((item) => {
+      const itemId = getProductId(item.product);
+      return itemId && String(itemId) === String(productId);
+    });
     if (existingIndex > -1) {
       const updatedCart = [...currentCart];
       if (updatedCart[existingIndex].qty > 1) {

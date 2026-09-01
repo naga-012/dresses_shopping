@@ -210,15 +210,16 @@ export default function Home() {
             gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
             gap: '24px'
           }}>
-            {trendingProducts.map((p) => {
-              const productQty = getProductQty(p._id);
+            {trendingProducts.map((p, idx) => {
+              const pId = p._id || p.id;
+              const productQty = getProductQty(pId);
 
               return (
                 <div
-                  key={p._id}
+                  key={pId || idx}
                   onClick={() => {
                     setSelectedProduct(p);
-                    navigate(`/product/${p._id}`);
+                    navigate(`/product/${pId}`);
                   }}
                   style={{
                     background: '#121218',
@@ -238,7 +239,7 @@ export default function Home() {
                         e.stopPropagation();
                         toggleWishlist(p);
                       }}
-                      title={isWishlisted(p._id) ? "Unlike item" : "Like item"}
+                      title={isWishlisted(pId) ? "Unlike item" : "Like item"}
                       style={{
                         position: 'absolute',
                         top: '12px',
@@ -259,8 +260,8 @@ export default function Home() {
                     >
                       <Heart
                         size={18}
-                        fill={isWishlisted(p._id) ? '#ef4444' : 'none'}
-                        color={isWishlisted(p._id) ? '#ef4444' : '#fff'}
+                        fill={isWishlisted(pId) ? '#ef4444' : 'none'}
+                        color={isWishlisted(pId) ? '#ef4444' : '#fff'}
                       />
                     </button>
                   </div>
@@ -289,7 +290,7 @@ export default function Home() {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              decrementProduct(p._id);
+                              decrementProduct(pId);
                             }}
                             style={{
                               background: 'none',

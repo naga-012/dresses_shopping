@@ -120,7 +120,8 @@ export default function Shop() {
     setSelectedProduct(product);
     if (product.category) setActiveCategory(product.category);
     toast.success(`Opening 3D Fashion Viewer for ${product.name}...`);
-    navigate(`/product/${product._id}`);
+    const pId = product._id || product.id;
+    navigate(`/product/${pId}`);
   };
 
 
@@ -131,7 +132,7 @@ export default function Shop() {
 
   const displayedProducts = products.filter((p) => {
     if (selectedCategory === '❤️ Liked Items') {
-      return isWishlisted(p._id);
+      return isWishlisted(p._id || p.id);
     }
     return true;
   });
@@ -226,13 +227,15 @@ export default function Shop() {
           gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))',
           gap: '24px'
         }}>
-          {sortedProducts.map((p) => {
-            const isCurrentlyOnDoll = selectedProduct?._id === p._id;
-            const productQty = getProductQty(p._id);
+          {sortedProducts.map((p, idx) => {
+            const pId = p._id || p.id;
+            const selId = selectedProduct?._id || selectedProduct?.id;
+            const isCurrentlyOnDoll = Boolean(pId && selId && String(pId) === String(selId));
+            const productQty = getProductQty(pId);
 
             return (
               <div
-                key={p._id}
+                key={pId || idx}
                 onClick={() => handleDressClick(p)}
                 className="glass-panel"
                 style={{
@@ -256,7 +259,7 @@ export default function Shop() {
                       e.stopPropagation();
                       toggleWishlist(p);
                     }}
-                    title={isWishlisted(p._id) ? "Unlike item" : "Like item"}
+                    title={isWishlisted(pId) ? "Unlike item" : "Like item"}
                     style={{
                       position: 'absolute',
                       top: '12px',
@@ -277,8 +280,8 @@ export default function Shop() {
                   >
                     <Heart
                       size={18}
-                      fill={isWishlisted(p._id) ? '#ef4444' : 'none'}
-                      color={isWishlisted(p._id) ? '#ef4444' : '#fff'}
+                      fill={isWishlisted(pId) ? '#ef4444' : 'none'}
+                      color={isWishlisted(pId) ? '#ef4444' : '#fff'}
                     />
                   </button>
                   
@@ -341,7 +344,7 @@ export default function Shop() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            decrementProduct(p._id);
+                            decrementProduct(pId);
                           }}
                           style={{
                             background: 'none',
