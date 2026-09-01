@@ -1,8 +1,9 @@
 # Render Multi-Service Blueprint Specification
 services:
   # 1. Customer Site Frontend (Static Site)
-  - type: static
+  - type: web
     name: saha-customer-site
+    env: static
     rootDir: customer_site/client
     buildCommand: npm install && npm run build
     staticPublishPath: dist
@@ -12,8 +13,9 @@ services:
         destination: /index.html
 
   # 2. Admin Site Frontend (Static Site)
-  - type: static
+  - type: web
     name: saha-admin-site
+    env: static
     rootDir: admin_site
     buildCommand: npm install && npm run build
     staticPublishPath: dist
@@ -25,7 +27,7 @@ services:
   # 3. Backend Express API & Email Service (Web Service)
   - type: web
     name: saha-backend-api
-    runtime: node
+    env: node
     rootDir: customer_site/server
     buildCommand: npm install
     startCommand: node index.js
