@@ -70,12 +70,11 @@ export default function MyOrders() {
 
         // Sync updated order status from API into local orders
         const updatedLocal = localOrders.map(lo => {
-          const match = apiOrders.find(ao =>
-            String(ao._id) === String(lo._id) ||
-            String(ao.orderId) === String(lo.orderId) ||
-            String(ao._id) === String(lo.orderId) ||
-            String(ao.orderId) === String(lo._id)
-          );
+          const match = apiOrders.find(ao => {
+            const loKey = String(lo.orderId || lo._id).replace(/^ORD-/, '');
+            const aoKey = String(ao.orderId || ao._id).replace(/^ORD-/, '');
+            return loKey === aoKey || String(ao._id) === String(lo._id) || String(ao.orderId) === String(lo.orderId);
+          });
           if (match && match.orderStatus) {
             return { ...lo, ...match, orderStatus: match.orderStatus };
           }

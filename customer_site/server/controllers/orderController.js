@@ -395,17 +395,21 @@ exports.getMyOrders = async (req, res) => {
 
     const allMem = getMergedMemoryOrders ? getMergedMemoryOrders() : (memoryOrders || []);
 
-    // Combine dbOrders and memoryOrders seamlessly
+    // Map to hold merged latest state of orders
     const orderMap = new Map();
     [...userOrders, ...allMem].forEach(o => {
       if (!o) return;
-      const key = String(o.orderId || o._id);
+      const rawKey = String(o.orderId || o._id);
+      const key = rawKey.replace(/^ORD-/, '');
       if (!orderMap.has(key)) {
         orderMap.set(key, o);
       } else {
         const existing = orderMap.get(key);
-        if (o.orderStatus && o.orderStatus !== 'Pending' && existing.orderStatus === 'Pending') {
+        // Prefer updated orderStatus if status changed from Pending
+        if (o.orderStatus && o.orderStatus !== 'Pending') {
           orderMap.set(key, { ...existing, ...o, orderStatus: o.orderStatus });
+        } else if (new Date(o.updatedAt || 0) > new Date(existing.updatedAt || 0)) {
+          orderMap.set(key, { ...existing, ...o });
         }
       }
     });
