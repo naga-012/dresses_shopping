@@ -57,16 +57,19 @@ exports.getAdminCustomers = async (req, res) => {
           dbCustomersWithStats = await Promise.all(
             users.map(async (user) => {
               const uObj = user.toObject ? user.toObject() : user;
-              const userOrders = await Order.find({
-                $or: [
-                  { user: user._id },
-                  ...(user.phone ? [{ 'shippingAddress.phone': user.phone }] : []),
-                  ...(user.email ? [{ 'shippingAddress.email': user.email }] : [])
-                ],
-                orderStatus: { $ne: 'Cancelled' }
-              })
-                .maxTimeMS(2000)
-                .catch(() => []);
+              let userOrders = [];
+              if (mongoose.connection.readyState === 1) {
+                userOrders = await Order.find({
+                  $or: [
+                    { user: user._id },
+                    ...(user.phone ? [{ 'shippingAddress.phone': user.phone }] : []),
+                    ...(user.email ? [{ 'shippingAddress.email': user.email }] : [])
+                  ],
+                  orderStatus: { $ne: 'Cancelled' }
+                })
+                  .maxTimeMS(2000)
+                  .catch(() => []);
+              }
 
               const totalOrders = userOrders.length;
               const totalSpend = userOrders.reduce((sum, o) => sum + (Number(o.totalPrice) || 0), 0);
