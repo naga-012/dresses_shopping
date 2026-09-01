@@ -1,7 +1,9 @@
 const mongoose = require('mongoose');
 
-// Disable Mongoose command buffering so queries fail fast when DB is disconnected
+// Disable Mongoose command buffering and auto indexing so queries fail fast when DB is disconnected
 mongoose.set('bufferCommands', false);
+mongoose.set('autoIndex', false);
+mongoose.set('autoCreate', false);
 
 let isConnected = false;
 

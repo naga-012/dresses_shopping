@@ -1,7 +1,9 @@
 const express = require('express');
 const cors = require('cors');
-const dotenv = require('dotenv');
-const connectDB = require('../server/config/db');
+const mongoose = require('mongoose');
+mongoose.set('bufferCommands', false);
+mongoose.set('autoIndex', false);
+mongoose.set('autoCreate', false);
 
 dotenv.config();
 connectDB();

@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 mongoose.set('bufferCommands', false);
+mongoose.set('autoIndex', false);
+mongoose.set('autoCreate', false);
 const bcrypt = require('bcryptjs');
 
 const userSchema = new mongoose.Schema({
