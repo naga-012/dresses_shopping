@@ -384,22 +384,18 @@ exports.getOrderById = async (req, res) => {
 exports.getMyOrders = async (req, res) => {
   try {
     let userOrders = [];
-    if (req.user?._id && mongoose.Types.ObjectId.isValid(req.user._id)) {
-      userOrders = await Order.find({ user: req.user._id }).sort('-createdAt').catch(() => []);
+    if (mongoose.connection.readyState === 1) {
+      if (req.user?._id && mongoose.Types.ObjectId.isValid(req.user._id)) {
+        userOrders = await Order.find({ user: req.user._id }).sort('-createdAt').maxTimeMS(2000).catch(() => []);
+      }
+      if (!userOrders || userOrders.length === 0) {
+        userOrders = await Order.find({}).sort('-createdAt').limit(30).maxTimeMS(2000).catch(() => []);
+      }
     }
 
-    if (!userOrders || userOrders.length === 0) {
-      userOrders = await Order.find({}).sort('-createdAt').limit(20).catch(() => []);
-    }
+    const allMem = getMergedMemoryOrders ? getMergedMemoryOrders() : (memoryOrders || []);
 
-    const allMem = getMergedMemoryOrders();
-    const dbKeys = new Set();
-    userOrders.forEach(o => {
-      if (o._id) dbKeys.add(String(o._id));
-      if (o.orderId) dbKeys.add(String(o.orderId));
-    });
-
-    // Map to hold merged latest state of orders
+    // Combine dbOrders and memoryOrders seamlessly
     const orderMap = new Map();
     [...userOrders, ...allMem].forEach(o => {
       if (!o) return;
@@ -408,17 +404,17 @@ exports.getMyOrders = async (req, res) => {
         orderMap.set(key, o);
       } else {
         const existing = orderMap.get(key);
-        // Prefer newer orderStatus if updated
         if (o.orderStatus && o.orderStatus !== 'Pending' && existing.orderStatus === 'Pending') {
           orderMap.set(key, { ...existing, ...o, orderStatus: o.orderStatus });
         }
       }
     });
 
-    const combinedOrders = Array.from(orderMap.values()).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    const combinedOrders = Array.from(orderMap.values()).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
     return res.json(combinedOrders);
   } catch (error) {
-    return res.json(getMergedMemoryOrders());
+    const allMem = getMergedMemoryOrders ? getMergedMemoryOrders() : (memoryOrders || []);
+    return res.json(allMem);
   }
 };
 
