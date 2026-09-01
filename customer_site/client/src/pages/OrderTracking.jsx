@@ -60,8 +60,15 @@ export default function OrderTracking() {
     return <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d4af37' }}>Loading Order...</div>;
   }
 
-  if (!order) {
-    return <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>Order not found.</div>;
+  if (!order || !order.orderItems || !Array.isArray(order.orderItems)) {
+    return (
+      <div style={{ minHeight: '80vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#fff', gap: '16px' }}>
+        <p style={{ color: '#aaa', fontSize: '15px' }}>Order not found or invalid Order ID.</p>
+        <Link to="/my-orders" style={{ background: '#d4af37', color: '#000', padding: '10px 20px', borderRadius: '8px', textDecoration: 'none', fontWeight: 700, fontSize: '13px' }}>
+          View My Orders
+        </Link>
+      </div>
+    );
   }
 
   const currentStatusIndex = statuses.indexOf(order.orderStatus === 'Order Confirmed' ? 'Confirmed' : order.orderStatus);
@@ -176,10 +183,10 @@ export default function OrderTracking() {
         <div className="glass-panel" style={{ padding: '24px', borderRadius: '16px' }}>
           <h4 style={{ fontFamily: 'Outfit', fontSize: '16px', fontWeight: 700, color: '#fff', marginBottom: '16px' }}>Shipping Address</h4>
           <div style={{ fontSize: '13px', color: '#aaa', lineHeight: '1.6' }}>
-            <p style={{ color: '#fff', fontWeight: 600 }}>{order.shippingAddress.fullName}</p>
-            <p>{order.shippingAddress.street}</p>
-            <p>{order.shippingAddress.city}, {order.shippingAddress.state} - {order.shippingAddress.pincode}</p>
-            <p style={{ marginTop: '8px', color: '#d4af37' }}>Phone: {order.shippingAddress.phone}</p>
+            <p style={{ color: '#fff', fontWeight: 600 }}>{order.shippingAddress?.fullName || 'Customer'}</p>
+            <p>{order.shippingAddress?.street || ''}</p>
+            <p>{order.shippingAddress?.city || ''}, {order.shippingAddress?.state || ''} - {order.shippingAddress?.pincode || ''}</p>
+            <p style={{ marginTop: '8px', color: '#d4af37' }}>Phone: {order.shippingAddress?.phone || 'N/A'}</p>
             <p style={{ marginTop: '4px' }}>Payment Method: <strong style={{ color: '#fff' }}>{order.paymentMethod}</strong></p>
           </div>
         </div>
