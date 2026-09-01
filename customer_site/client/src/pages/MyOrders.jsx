@@ -220,11 +220,14 @@ export default function MyOrders() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           {orders.map((ord) => {
+            if (!ord) return null;
             const statusStyle = getStatusColor(ord.orderStatus);
+            const orderIdText = ord.orderId ? String(ord.orderId).replace(/^ORD-/, '') : String(ord._id || 'ORD').substring(0, 10).toUpperCase();
+            const orderItemsList = Array.isArray(ord.orderItems) ? ord.orderItems : [];
 
             return (
               <div
-                key={ord._id}
+                key={ord._id || ord.orderId || Math.random()}
                 className="glass-panel"
                 style={{
                   padding: '24px',
@@ -250,7 +253,7 @@ export default function MyOrders() {
                   <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <span style={{ fontFamily: 'Outfit', fontSize: '18px', fontWeight: 900, color: '#fff' }}>
-                        Order #{ord.orderId ? ord.orderId.replace(/^ORD-/, '') : ord._id.substring(0, 10).toUpperCase()}
+                        Order #{orderIdText}
                       </span>
                       <span
                         style={{
@@ -263,25 +266,25 @@ export default function MyOrders() {
                           fontWeight: 800
                         }}
                       >
-                        {ord.orderStatus}
+                        {ord.orderStatus || 'Processing'}
                       </span>
                     </div>
                     <p style={{ color: '#a1a1aa', fontSize: '13px', marginTop: '6px' }}>
-                      Placed on {new Date(ord.createdAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} • Payment: <strong style={{ color: '#fff' }}>{ord.paymentMethod}</strong>
+                      Placed on {new Date(ord.createdAt || Date.now()).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })} • Payment: <strong style={{ color: '#fff' }}>{ord.paymentMethod || 'UPI'}</strong>
                     </p>
                   </div>
 
                   <div style={{ textAlign: 'right' }}>
                     <span style={{ fontSize: '12px', color: '#a1a1aa' }}>Total Paid</span>
                     <div style={{ fontSize: '22px', fontWeight: 900, color: '#d4af37' }}>
-                      ₹{ord.totalPrice.toLocaleString()}
+                      ₹{(ord.totalPrice || ord.itemsPrice || 0).toLocaleString()}
                     </div>
                   </div>
                 </div>
 
                 {/* Items Grid */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '20px' }}>
-                  {ord.orderItems.map((item, idx) => (
+                  {orderItemsList.map((item, idx) => (
                     <div
                       key={idx}
                       style={{
