@@ -15,8 +15,6 @@ exports.getAdminDashboardStats = async (req, res) => {
     let recentCustomers = [];
 
     if (mongoose.connection.readyState === 1) {
-      totalProducts = await Product.countDocuments().maxTimeMS(2000).catch(() => 0);
-      totalCustomers = await User.countDocuments({ role: 'user' }).maxTimeMS(2000).catch(() => 0);
       products = await Product.find({}).maxTimeMS(2000).catch(() => []);
       dbOrders = await Order.find({}).maxTimeMS(2000).catch(() => []);
       recentCustomers = await User.find({ role: 'user' })
@@ -25,6 +23,8 @@ exports.getAdminDashboardStats = async (req, res) => {
         .limit(5)
         .maxTimeMS(2000)
         .catch(() => []);
+      totalProducts = products.length;
+      totalCustomers = recentCustomers.length;
     }
 
     const lowStockCount = products.filter(p => p.stock > 0 && p.stock <= 5).length;
