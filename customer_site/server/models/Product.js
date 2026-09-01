@@ -41,6 +41,6 @@ const productSchema = new mongoose.Schema({
   soldCount: { type: Number, default: 0 },
   sku: { type: String, default: '' },
   tags: [{ type: String }]
-}, { timestamps: true });
+}, { timestamps: true, bufferCommands: false });
 
 module.exports = mongoose.model('Product', productSchema);

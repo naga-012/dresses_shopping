@@ -17,7 +17,7 @@ const userSchema = new mongoose.Schema({
     phone: String,
     isDefault: { type: Boolean, default: false }
   }]
-}, { timestamps: true });
+}, { timestamps: true, bufferCommands: false });
 
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
