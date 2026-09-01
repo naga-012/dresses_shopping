@@ -32,10 +32,14 @@ exports.getAdminCustomers = async (req, res) => {
   try {
     const { search, page = 1, limit = 50 } = req.query;
 
-    // 1. Fetch Registered DB Users (Only if Mongoose is fully connected: readyState === 1)
+    // 1. Fetch Registered DB Users (Only if Mongoose is fully connected and valid cluster)
     let dbCustomersWithStats = [];
+    const isVercel = Boolean(process.env.VERCEL);
+    const mongoUri = process.env.MONGO_URI || '';
+    const isLocalUriOnVercel = isVercel && (!mongoUri || mongoUri.includes('127.0.0.1') || mongoUri.includes('localhost') || mongoUri.includes('<db_username>'));
+
     try {
-      if (mongoose.connection.readyState === 1) {
+      if (!isLocalUriOnVercel && mongoose.connection.readyState === 1) {
         let userQuery = { role: { $ne: 'admin' } };
         if (search && typeof search === 'string' && search.trim()) {
           const sanitized = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -91,7 +95,7 @@ exports.getAdminCustomers = async (req, res) => {
     const memOrders = getMergedMemoryOrders ? getMergedMemoryOrders() : (memoryOrders || []);
     let dbOrders = [];
     try {
-      if (mongoose.connection.readyState === 1) {
+      if (!isLocalUriOnVercel && mongoose.connection.readyState === 1) {
         dbOrders = await Order.find({}).sort('-createdAt').maxTimeMS(2000).catch(() => []);
       }
     } catch (e) {}
