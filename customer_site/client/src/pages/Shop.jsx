@@ -231,7 +231,7 @@ export default function Shop() {
             const pId = p._id || p.id;
             const selId = selectedProduct?._id || selectedProduct?.id;
             const isCurrentlyOnDoll = Boolean(pId && selId && String(pId) === String(selId));
-            const productQty = getProductQty(pId);
+            const productQty = getProductQty(p);
 
             return (
               <div
@@ -259,7 +259,7 @@ export default function Shop() {
                       e.stopPropagation();
                       toggleWishlist(p);
                     }}
-                    title={isWishlisted(pId) ? "Unlike item" : "Like item"}
+                    title={isWishlisted(p) ? "Unlike item" : "Like item"}
                     style={{
                       position: 'absolute',
                       top: '12px',
@@ -280,8 +280,8 @@ export default function Shop() {
                   >
                     <Heart
                       size={18}
-                      fill={isWishlisted(pId) ? '#ef4444' : 'none'}
-                      color={isWishlisted(pId) ? '#ef4444' : '#fff'}
+                      fill={isWishlisted(p) ? '#ef4444' : 'none'}
+                      color={isWishlisted(p) ? '#ef4444' : '#fff'}
                     />
                   </button>
                   
@@ -344,7 +344,7 @@ export default function Shop() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            decrementProduct(pId);
+                            decrementProduct(p);
                           }}
                           style={{
                             background: 'none',

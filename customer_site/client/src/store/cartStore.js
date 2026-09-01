@@ -28,6 +28,21 @@ const getInitialCart = () => {
   }
 };
 
+const isSameProduct = (p1, p2) => {
+  if (!p1 || !p2) return false;
+  if (p1 === p2) return true;
+  const id1 = typeof p1 === 'string' ? p1 : getProductId(p1);
+  const id2 = typeof p2 === 'string' ? p2 : getProductId(p2);
+  if (id1 && id2 && String(id1) === String(id2)) return true;
+  const slug1 = typeof p1 === 'object' ? p1?.slug : null;
+  const slug2 = typeof p2 === 'object' ? p2?.slug : null;
+  if (slug1 && slug2 && slug1 === slug2) return true;
+  const name1 = typeof p1 === 'object' ? p1?.name : null;
+  const name2 = typeof p2 === 'object' ? p2?.name : null;
+  if (name1 && name2 && name1.trim().toLowerCase() === name2.trim().toLowerCase()) return true;
+  return false;
+};
+
 export const useCartStore = create((set, get) => ({
   cart: getInitialCart(),
   isCartOpen: false,
@@ -50,10 +65,7 @@ export const useCartStore = create((set, get) => ({
       : (Array.isArray(product.colors) && typeof product.colors[0] === 'object' ? product.colors[0]?.hex : '#000000');
 
     const existingIndex = currentCart.findIndex(
-      (item) => {
-        const itemId = getProductId(item.product);
-        return itemId && String(itemId) === String(targetId) && item.size === sizeToUse && item.color === colorName;
-      }
+      (item) => isSameProduct(item.product, product) && item.size === sizeToUse && item.color === colorName
     );
 
     let updatedCart;
@@ -127,29 +139,18 @@ export const useCartStore = create((set, get) => ({
     return (get().cart || []).reduce((count, item) => count + (item?.qty || 1), 0);
   },
 
-  getProductQty: (productId) => {
-    if (!productId) return 0;
-    const targetId = typeof productId === 'object' ? getProductId(productId) : String(productId);
-    if (!targetId) return 0;
+  getProductQty: (product) => {
+    if (!product) return 0;
 
     return (get().cart || [])
-      .filter((item) => {
-        const itemId = getProductId(item.product);
-        return itemId && String(itemId) === String(targetId);
-      })
+      .filter((item) => isSameProduct(item.product, product))
       .reduce((total, item) => total + (item?.qty || 0), 0);
   },
 
-  decrementProduct: (productId) => {
-    if (!productId) return;
-    const targetId = typeof productId === 'object' ? getProductId(productId) : String(productId);
-    if (!targetId) return;
-
+  decrementProduct: (product) => {
+    if (!product) return;
     const currentCart = get().cart || [];
-    const existingIndex = currentCart.findIndex((item) => {
-      const itemId = getProductId(item.product);
-      return itemId && String(itemId) === String(targetId);
-    });
+    const existingIndex = currentCart.findIndex((item) => isSameProduct(item.product, product));
 
     if (existingIndex > -1) {
       const updatedCart = [...currentCart];

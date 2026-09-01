@@ -198,7 +198,7 @@ export default function ProductDetail3D() {
             {/* Floating Like Heart Button */}
             <button
               onClick={() => toggleWishlist(product)}
-              title={isWishlisted(product?._id || product?.id) ? "Unlike item" : "Like item"}
+              title={isWishlisted(product) ? "Unlike item" : "Like item"}
               style={{
                 position: 'absolute',
                 top: '20px',
@@ -219,8 +219,8 @@ export default function ProductDetail3D() {
             >
               <Heart
                 size={22}
-                fill={isWishlisted(product?._id || product?.id) ? '#ef4444' : 'none'}
-                color={isWishlisted(product?._id || product?.id) ? '#ef4444' : '#fff'}
+                fill={isWishlisted(product) ? '#ef4444' : 'none'}
+                color={isWishlisted(product) ? '#ef4444' : '#fff'}
               />
             </button>
 
@@ -411,8 +411,7 @@ export default function ProductDetail3D() {
 
           {/* Quantity Controls & Action Buttons */}
           {(() => {
-            const prodId = product?._id || product?.id;
-            const productQty = getProductQty(prodId);
+            const productQty = getProductQty(product);
 
             return (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
@@ -422,7 +421,7 @@ export default function ProductDetail3D() {
                       ✓ Added to Cart ({productQty} in cart)
                     </div>
                     <div style={{ display: 'inline-flex', alignItems: 'center', background: '#181820', borderRadius: '8px', border: '1px solid #d4af37', padding: '4px' }}>
-                      <button onClick={() => decrementProduct(prodId)} style={{ background: 'none', border: 'none', color: '#fff', padding: '6px 14px', cursor: 'pointer' }}>
+                      <button onClick={() => decrementProduct(product)} style={{ background: 'none', border: 'none', color: '#fff', padding: '6px 14px', cursor: 'pointer' }}>
                         <Minus size={16} />
                       </button>
                       <span style={{ fontSize: '15px', fontWeight: 800, color: '#d4af37', padding: '0 14px' }}>{productQty}</span>

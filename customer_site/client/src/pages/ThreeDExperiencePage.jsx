@@ -358,7 +358,7 @@ export default function ThreeDExperiencePage() {
 
               {/* Quantity Controls & Action Buttons */}
               {(() => {
-                const productQty = getProductQty(selectedProduct?._id);
+                const productQty = getProductQty(selectedProduct);
 
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
@@ -368,7 +368,7 @@ export default function ThreeDExperiencePage() {
                           ✓ Added to Cart ({productQty} in cart)
                         </div>
                         <div style={{ display: 'inline-flex', alignItems: 'center', background: '#181820', borderRadius: '8px', border: '1px solid #d4af37', padding: '4px' }}>
-                          <button onClick={() => decrementProduct(selectedProduct?._id)} style={{ background: 'none', border: 'none', color: '#fff', padding: '6px 14px', cursor: 'pointer' }}>
+                          <button onClick={() => decrementProduct(selectedProduct)} style={{ background: 'none', border: 'none', color: '#fff', padding: '6px 14px', cursor: 'pointer' }}>
                             <Minus size={16} />
                           </button>
                           <span style={{ fontSize: '15px', fontWeight: 800, color: '#d4af37', padding: '0 14px' }}>{productQty}</span>
