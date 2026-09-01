@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+mongoose.set('bufferCommands', false);
 
 const orderSchema = new mongoose.Schema({
   orderId: { type: String, default: () => 'ORD-' + Math.floor(100000 + Math.random() * 900000) },
