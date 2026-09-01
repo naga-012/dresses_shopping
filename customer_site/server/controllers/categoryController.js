@@ -15,7 +15,9 @@ const initialCategories = [
 // Helper to seed default categories if empty
 const autoSeedCategories = async () => {
   try {
-    const count = await Category.countDocuments().catch(() => 0);
+    const mongoose = require('mongoose');
+    if (mongoose.connection.readyState !== 1) return;
+    const count = await Category.countDocuments().maxTimeMS(2000).catch(() => 0);
     if (count === 0) {
       await Category.insertMany(initialCategories).catch(() => {});
     }

@@ -5,7 +5,9 @@ const initialProducts = require('../utils/seedData');
 // Helper to auto-seed database if empty
 const autoSeedIfEmpty = async () => {
   try {
-    const count = await Product.countDocuments().catch(() => 0);
+    const mongoose = require('mongoose');
+    if (mongoose.connection.readyState !== 1) return;
+    const count = await Product.countDocuments().maxTimeMS(2000).catch(() => 0);
     if (count === 0) {
       console.log('Database empty: Auto-seeding initial products...');
       await Product.insertMany(initialProducts).catch(err => console.error('Auto seed error:', err));

@@ -38,11 +38,16 @@ exports.getAdminProducts = async (req, res) => {
     let count = 0;
 
     try {
-      count = await Product.countDocuments(query);
-      products = await Product.find(query)
-        .sort('-createdAt')
-        .limit(Number(limit))
-        .skip((Number(page) - 1) * Number(limit));
+      const mongoose = require('mongoose');
+      if (mongoose.connection.readyState === 1) {
+        count = await Product.countDocuments(query).maxTimeMS(2000).catch(() => 0);
+        products = await Product.find(query)
+          .sort('-createdAt')
+          .limit(Number(limit))
+          .skip((Number(page) - 1) * Number(limit))
+          .maxTimeMS(2000)
+          .catch(() => []);
+      }
     } catch (e) {
       console.warn('Admin DB products fallback:', e.message);
     }
