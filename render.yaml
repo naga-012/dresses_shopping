@@ -1,9 +1,10 @@
-# Render Multi-Service Blueprint Specification
+# Render 100% Free Multi-Service Blueprint Specification
 services:
-  # 1. Customer Site Frontend (Static Site)
+  # 1. Customer Site Frontend (Free Static Site)
   - type: web
     name: saha-customer-site
     env: static
+    plan: free
     rootDir: customer_site/client
     buildCommand: npm install && npm run build
     staticPublishPath: dist
@@ -12,10 +13,11 @@ services:
         source: /*
         destination: /index.html
 
-  # 2. Admin Site Frontend (Static Site)
+  # 2. Admin Site Frontend (Free Static Site)
   - type: web
     name: saha-admin-site
     env: static
+    plan: free
     rootDir: admin_site
     buildCommand: npm install && npm run build
     staticPublishPath: dist
@@ -24,10 +26,11 @@ services:
         source: /*
         destination: /index.html
 
-  # 3. Backend Express API & Email Service (Web Service)
+  # 3. Backend Express API & Email Service (Free Web Service)
   - type: web
     name: saha-backend-api
     env: node
+    plan: free
     rootDir: customer_site/server
     buildCommand: npm install
     startCommand: node index.js
