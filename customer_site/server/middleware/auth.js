@@ -47,9 +47,9 @@ const protect = async (req, res, next) => {
         decoded = jwt.decode(token) || {};
       }
 
-      // Safely query User model if decoded.id is a valid Mongoose ObjectId
-      if (decoded.id && mongoose.Types.ObjectId.isValid(decoded.id)) {
-        req.user = await User.findById(decoded.id).select('-password').catch(() => null);
+      // Safely query User model if decoded.id is a valid Mongoose ObjectId and DB is connected
+      if (decoded.id && mongoose.Types.ObjectId.isValid(decoded.id) && mongoose.connection.readyState === 1) {
+        req.user = await User.findById(decoded.id).select('-password').maxTimeMS(2000).catch(() => null);
       }
 
       // If user is not found in database or decoded.id is a mock ID string (e.g., 'usr_123')
