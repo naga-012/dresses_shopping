@@ -1,22 +1,36 @@
 const Product = require('../models/Product');
 const Order = require('../models/Order');
 const User = require('../models/User');
+const mongoose = require('mongoose');
 const { memoryOrders } = require('./orderController');
 
 // @desc Get comprehensive dashboard analytics stats
 // @route GET /api/admin/dashboard/stats
 exports.getAdminDashboardStats = async (req, res) => {
   try {
-    const totalProducts = await Product.countDocuments().catch(() => 0);
-    const totalCustomers = await User.countDocuments({ role: 'user' }).catch(() => 0);
+    let totalProducts = 0;
+    let totalCustomers = 0;
+    let products = [];
+    let dbOrders = [];
+    let recentCustomers = [];
 
-    // Stock stats
-    const products = await Product.find({}).catch(() => []);
+    if (mongoose.connection.readyState === 1) {
+      totalProducts = await Product.countDocuments().maxTimeMS(2000).catch(() => 0);
+      totalCustomers = await User.countDocuments({ role: 'user' }).maxTimeMS(2000).catch(() => 0);
+      products = await Product.find({}).maxTimeMS(2000).catch(() => []);
+      dbOrders = await Order.find({}).maxTimeMS(2000).catch(() => []);
+      recentCustomers = await User.find({ role: 'user' })
+        .select('-password')
+        .sort('-createdAt')
+        .limit(5)
+        .maxTimeMS(2000)
+        .catch(() => []);
+    }
+
     const lowStockCount = products.filter(p => p.stock > 0 && p.stock <= 5).length;
     const outOfStockCount = products.filter(p => p.stock === 0).length;
 
     // Order status breakdown (DB + memoryOrders)
-    const dbOrders = await Order.find({}).catch(() => []);
     const dbOrderIds = new Set(dbOrders.map(o => String(o._id)));
     const filteredMemOrders = (memoryOrders || []).filter(mo => !dbOrderIds.has(String(mo._id)));
     const orders = [...dbOrders, ...filteredMemOrders];
@@ -48,13 +62,6 @@ exports.getAdminDashboardStats = async (req, res) => {
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       .slice(0, 8);
 
-    // Recent customers
-    const recentCustomers = await User.find({ role: 'user' })
-      .select('-password')
-      .sort('-createdAt')
-      .limit(5)
-      .catch(() => []);
-
     // Top low stock products
     const lowStockAlerts = products
       .filter(p => p.stock <= 5)
@@ -85,7 +92,11 @@ exports.getAdminDashboardStats = async (req, res) => {
 // @route GET /api/admin/dashboard/analytics
 exports.getAdminAnalytics = async (req, res) => {
   try {
-    const dbOrders = await Order.find({ orderStatus: { $ne: 'Cancelled' } }).catch(() => []);
+    let dbOrders = [];
+    if (mongoose.connection.readyState === 1) {
+      dbOrders = await Order.find({ orderStatus: { $ne: 'Cancelled' } }).maxTimeMS(2000).catch(() => []);
+    }
+
     const dbOrderIds = new Set(dbOrders.map(o => String(o._id)));
     const filteredMemOrders = (memoryOrders || []).filter(mo => !dbOrderIds.has(String(mo._id)) && mo.orderStatus !== 'Cancelled');
     const orders = [...dbOrders, ...filteredMemOrders];
