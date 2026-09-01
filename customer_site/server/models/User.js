@@ -20,7 +20,7 @@ const userSchema = new mongoose.Schema({
     phone: String,
     isDefault: { type: Boolean, default: false }
   }]
-}, { timestamps: true, bufferCommands: false });
+}, { timestamps: true, bufferCommands: false, autoIndex: false, autoCreate: false });
 
 userSchema.pre('save', async function (next) {
   if (!this.isModified('password')) return next();
@@ -33,4 +33,4 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = mongoose.models.User || mongoose.model('User', userSchema);

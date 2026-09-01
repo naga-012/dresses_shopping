@@ -46,6 +46,6 @@ const orderSchema = new mongoose.Schema({
     status: String,
     updatedAt: { type: Date, default: Date.now }
   }]
-}, { timestamps: true, bufferCommands: false });
+}, { timestamps: true, bufferCommands: false, autoIndex: false, autoCreate: false });
 
-module.exports = mongoose.model('Order', orderSchema);
+module.exports = mongoose.models.Order || mongoose.model('Order', orderSchema);

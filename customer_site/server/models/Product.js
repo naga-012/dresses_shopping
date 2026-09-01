@@ -42,6 +42,6 @@ const productSchema = new mongoose.Schema({
   soldCount: { type: Number, default: 0 },
   sku: { type: String, default: '' },
   tags: [{ type: String }]
-}, { timestamps: true, bufferCommands: false });
+}, { timestamps: true, bufferCommands: false, autoIndex: false, autoCreate: false });
 
-module.exports = mongoose.model('Product', productSchema);
+module.exports = mongoose.models.Product || mongoose.model('Product', productSchema);
