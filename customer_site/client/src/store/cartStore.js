@@ -4,7 +4,10 @@ import toast from 'react-hot-toast';
 const getInitialCart = () => {
   try {
     const saved = localStorage.getItem('mensverse_cart');
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(item => item && item.product && (item.product._id || item.product.id));
   } catch (e) {
     return [];
   }

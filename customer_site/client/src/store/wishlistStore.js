@@ -4,7 +4,10 @@ import toast from 'react-hot-toast';
 const getInitialWishlist = () => {
   try {
     const saved = localStorage.getItem('mensverse_wishlist');
-    return saved ? JSON.parse(saved) : [];
+    if (!saved) return [];
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(item => item && (item._id || item.id || (typeof item === 'string' && item)));
   } catch (e) {
     return [];
   }
