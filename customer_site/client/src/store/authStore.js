@@ -28,21 +28,10 @@ export const useAuthStore = create((set, get) => ({
       toast.success(`Welcome back, ${user.name}`);
       return true;
     } catch (err) {
-      console.warn('API Login fallback:', err);
-      // Client-side fallback authentication if backend network is unreachable
-      const isAdmin = email && (email.toLowerCase().includes('admin') || email.toLowerCase().includes('saha'));
-      const fallbackUser = {
-        _id: 'usr_' + Date.now(),
-        name: isAdmin ? 'Admin User' : (email ? email.split('@')[0] : 'Saha Member'),
-        email: email || 'customer@gmail.com',
-        role: isAdmin ? 'admin' : 'user'
-      };
-      const fallbackToken = 'demo_token_' + Date.now();
-      localStorage.setItem('mensverse_token', fallbackToken);
-      localStorage.setItem('mensverse_user', JSON.stringify(fallbackUser));
-      set({ user: fallbackUser, token: fallbackToken, isLoading: false });
-      toast.success(`Welcome back, ${fallbackUser.name}`);
-      return true;
+      set({ isLoading: false });
+      const msg = err.response?.data?.message || 'Invalid email or password';
+      toast.error(msg);
+      return false;
     }
   },
 
@@ -109,12 +98,15 @@ export const useAuthStore = create((set, get) => ({
     if (!token) return;
     try {
       const res = await API.get('/auth/profile');
-      if (res.data) {
+      if (res.data && res.data._id) {
         set({ user: res.data });
         localStorage.setItem('mensverse_user', JSON.stringify(res.data));
       }
     } catch (err) {
-      console.warn('Profile fetch warning:', err);
+      console.warn('Profile fetch invalid session:', err);
+      localStorage.removeItem('mensverse_token');
+      localStorage.removeItem('mensverse_user');
+      set({ user: null, token: null });
     }
   }
 }));

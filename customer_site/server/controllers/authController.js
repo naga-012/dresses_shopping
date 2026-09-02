@@ -90,19 +90,7 @@ exports.loginUser = async (req, res) => {
     });
   }
 
-  if (normalizedEmail === allowedAdminEmail) {
-    return res.status(401).json({ message: 'Invalid email or password' });
-  }
-
-  // Regular customer fallback session if DB is unconfigured
-  const mockId = 'usr_' + Date.now();
-  return res.json({
-    _id: mockId,
-    name: email ? email.split('@')[0] : 'Saha Member',
-    email: normalizedEmail || 'customer@gmail.com',
-    role: 'user',
-    token: generateToken(mockId)
-  });
+  return res.status(401).json({ message: 'Invalid email or password. Please check your credentials or register.' });
 };
 
 
@@ -110,18 +98,15 @@ exports.loginUser = async (req, res) => {
 // @route GET /api/auth/profile
 exports.getUserProfile = async (req, res) => {
   try {
-    const user = await User.findById(req.user?._id).populate('wishlist').catch(() => null);
-    if (user) {
-      return res.json(user);
+    if (req.user?._id) {
+      const user = await User.findById(req.user._id).populate('wishlist').catch(() => null);
+      if (user) {
+        return res.json(user);
+      }
     }
   } catch (err) {}
 
-  return res.json({
-    _id: req.user?._id || 'usr_demo',
-    name: 'Saha Member',
-    email: 'customer@gmail.com',
-    role: 'user'
-  });
+  return res.status(401).json({ message: 'Not authorized, token failed' });
 };
 
 // @desc Update profile
