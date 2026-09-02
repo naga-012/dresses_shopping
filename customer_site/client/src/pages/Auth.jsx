@@ -368,6 +368,7 @@ export default function Auth() {
                       <input
                         type="text"
                         required
+                        autoComplete="off"
                         placeholder="John Doe"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
@@ -384,6 +385,7 @@ export default function Auth() {
                     <input
                       type="email"
                       required
+                      autoComplete="off"
                       placeholder="your.email@gmail.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
@@ -399,6 +401,7 @@ export default function Auth() {
                     <input
                       type="password"
                       required
+                      autoComplete="new-password"
                       placeholder="••••••••"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
