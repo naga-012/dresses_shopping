@@ -93,6 +93,21 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
+  updateProfile: async (name, email, phone) => {
+    try {
+      const res = await API.put('/auth/profile', { name, email, phone }).catch(() => null);
+      const currentUser = get().user || {};
+      const updatedUser = res?.data || { ...currentUser, name, email, phone };
+      localStorage.setItem('mensverse_user', JSON.stringify(updatedUser));
+      set({ user: updatedUser });
+      toast.success('Profile details updated successfully!');
+      return true;
+    } catch (err) {
+      toast.error('Failed to update profile');
+      return false;
+    }
+  },
+
   fetchProfile: async () => {
     const token = get().token;
     if (!token) return;

@@ -6,10 +6,16 @@ import API from '../api';
 import toast from 'react-hot-toast';
 
 export default function Profile() {
-  const { user, logout } = useAuthStore();
+  const { user, logout, updateProfile } = useAuthStore();
   const navigate = useNavigate();
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Profile Edit State
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editName, setEditName] = useState(user?.name || '');
+  const [editEmail, setEditEmail] = useState(user?.email || '');
+  const [editPhone, setEditPhone] = useState(user?.phone || '');
 
   // Address state
   const [addresses, setAddresses] = useState(() => {
@@ -29,7 +35,7 @@ export default function Profile() {
     city: '',
     state: '',
     pincode: '',
-    phone: user?.phone || '+91 9876543210'
+    phone: user?.phone || ''
   });
 
   useEffect(() => {
@@ -37,6 +43,9 @@ export default function Profile() {
       navigate('/auth');
       return;
     }
+    setEditName(user.name || '');
+    setEditEmail(user.email || '');
+    setEditPhone(user.phone || '');
 
     const fetchOrders = async () => {
       try {
@@ -50,6 +59,14 @@ export default function Profile() {
     };
     fetchOrders();
   }, [user]);
+
+  const handleSaveProfile = async (e) => {
+    e.preventDefault();
+    const ok = await updateProfile(editName, editEmail, editPhone);
+    if (ok) {
+      setIsEditingProfile(false);
+    }
+  };
 
   const handleAddAddress = (e) => {
     e.preventDefault();
@@ -75,7 +92,7 @@ export default function Profile() {
       city: '',
       state: '',
       pincode: '',
-      phone: user?.phone || '+91 9876543210'
+      phone: user?.phone || ''
     });
     toast.success('New address added successfully!');
   };
@@ -95,24 +112,81 @@ export default function Profile() {
   return (
     <div style={{ minHeight: '100vh', background: '#09090b', color: '#fff', paddingTop: '100px', paddingBottom: '80px', paddingLeft: '5%', paddingRight: '5%' }}>
       {/* User Header */}
-      <div className="glass-panel" style={{ padding: '30px', borderRadius: '20px', marginBottom: '32px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '20px' }}>
+      <div className="glass-panel" style={{ padding: '30px', borderRadius: '20px', marginBottom: '24px', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: '#d4af37', color: '#000', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '24px', fontFamily: 'Outfit' }}>
-            {user.name.charAt(0)}
+            {(user.name || user.email || 'U').charAt(0).toUpperCase()}
           </div>
           <div>
-            <h2 style={{ fontFamily: 'Outfit', fontSize: '24px', fontWeight: 800 }}>{user.name}</h2>
-            <p style={{ color: '#aaa', fontSize: '13px' }}>{user.email} • {user.phone || '+91 9876543210'}</p>
+            <h2 style={{ fontFamily: 'Outfit', fontSize: '24px', fontWeight: 800 }}>{user.name || 'Valued Customer'}</h2>
+            <p style={{ color: '#aaa', fontSize: '13px', margin: '4px 0 0 0' }}>
+              {user.email} {user.phone ? `• ${user.phone}` : ''}
+            </p>
           </div>
         </div>
 
-        <button
-          onClick={() => { logout(); navigate('/'); }}
-          style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#ef4444', padding: '10px 20px', borderRadius: '20px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
-        >
-          <LogOut size={16} /> Sign Out
-        </button>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button
+            onClick={() => setIsEditingProfile(!isEditingProfile)}
+            style={{ background: 'rgba(212, 175, 55, 0.15)', border: '1px solid rgba(212, 175, 55, 0.4)', color: '#d4af37', padding: '10px 18px', borderRadius: '20px', fontWeight: 700, fontSize: '13px', cursor: 'pointer' }}
+          >
+            {isEditingProfile ? 'Close Edit' : 'Edit Profile & Phone'}
+          </button>
+          <button
+            onClick={() => { logout(); navigate('/'); }}
+            style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#ef4444', padding: '10px 20px', borderRadius: '20px', fontWeight: 700, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}
+          >
+            <LogOut size={16} /> Sign Out
+          </button>
+        </div>
       </div>
+
+      {/* Edit Profile Form */}
+      {isEditingProfile && (
+        <form onSubmit={handleSaveProfile} className="glass-panel" style={{ padding: '24px', borderRadius: '20px', marginBottom: '32px', border: '1px solid #d4af37' }}>
+          <h3 style={{ fontFamily: 'Outfit', fontSize: '18px', fontWeight: 700, color: '#d4af37', marginBottom: '16px' }}>Update Customer Profile</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+            <div>
+              <label style={{ fontSize: '12px', color: '#aaa', fontWeight: 600 }}>Full Name</label>
+              <input
+                type="text"
+                required
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                style={{ width: '100%', background: '#141419', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '10px', borderRadius: '8px', marginTop: '4px', fontSize: '13px' }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', color: '#aaa', fontWeight: 600 }}>Gmail / Email Address</label>
+              <input
+                type="email"
+                required
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                style={{ width: '100%', background: '#141419', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '10px', borderRadius: '8px', marginTop: '4px', fontSize: '13px' }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: '12px', color: '#aaa', fontWeight: 600 }}>Mobile Phone Number</label>
+              <input
+                type="tel"
+                placeholder="+91 98765 43210"
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                style={{ width: '100%', background: '#141419', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '10px', borderRadius: '8px', marginTop: '4px', fontSize: '13px' }}
+              />
+            </div>
+          </div>
+          <div style={{ marginTop: '16px', display: 'flex', gap: '12px' }}>
+            <button type="submit" style={{ background: '#d4af37', color: '#000', border: 'none', padding: '10px 24px', borderRadius: '8px', fontWeight: 800, fontSize: '13px', cursor: 'pointer' }}>
+              Save Profile Changes
+            </button>
+            <button type="button" onClick={() => setIsEditingProfile(false)} style={{ background: 'transparent', color: '#aaa', border: '1px solid rgba(255,255,255,0.1)', padding: '10px 20px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}>
+              Cancel
+            </button>
+          </div>
+        </form>
+      )}
 
       {/* Main Grid: Orders & Addresses */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '32px' }}>
