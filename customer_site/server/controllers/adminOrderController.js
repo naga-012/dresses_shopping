@@ -1,5 +1,6 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
+const mongoose = require('mongoose');
 const { memoryOrders, getMergedMemoryOrders } = require('./orderController');
 
 // Helper to notify connected WebSocket clients about order updates
@@ -8,6 +9,26 @@ const emitOrderEvent = (req, eventName, data) => {
   if (io) {
     io.emit(eventName, data);
   }
+};
+
+// Helper to safely build MongoDB $or query for order lookup by _id or orderId
+const buildOrderQuery = (searchId) => {
+  if (!searchId) return {};
+  const rawId = String(searchId).trim();
+  const cleanId = rawId.replace(/^ORD-/, '');
+  const withPrefix = `ORD-${cleanId}`;
+
+  const orConditions = [
+    { orderId: rawId },
+    { orderId: withPrefix },
+    { orderId: { $regex: new RegExp(`^ORD-${cleanId}$`, 'i') } }
+  ];
+
+  if (mongoose.Types.ObjectId.isValid(rawId)) {
+    orConditions.push({ _id: rawId });
+  }
+
+  return { $or: orConditions };
 };
 
 // @desc Get all orders for Admin with filters (status, search, date range, pagination)
@@ -48,22 +69,23 @@ exports.getAdminOrders = async (req, res) => {
         dbOrders = await Order.find(query)
           .populate('user', 'name email phone')
           .sort('-createdAt')
-          .maxTimeMS(2000)
+          .maxTimeMS(3000)
           .catch(() => []);
       }
     } catch (e) {
       console.warn('DB find orders fallback:', e.message);
     }
 
-    // Combine dbOrders and memoryOrders seamlessly, preserving updated status
+    // Combine dbOrders and memoryOrders seamlessly, preserving updated status by latest timestamp
     const allMem = getMergedMemoryOrders ? getMergedMemoryOrders() : (memoryOrders || []);
     const orderMap = new Map();
 
     [...dbOrders, ...allMem].forEach(o => {
       if (!o) return;
-      const rawKey = String(o.orderId || o._id);
+      const rawKey = String(o.orderId || o._id || '');
       const key = rawKey.replace(/^ORD-/, '');
-      
+      if (!key) return;
+
       // Filter by status if specified
       if (status && status !== 'All') {
         const matchConfirmed = status === 'Confirmed' && (o.orderStatus === 'Confirmed' || o.orderStatus === 'Order Confirmed');
@@ -81,28 +103,15 @@ exports.getAdminOrders = async (req, res) => {
         if (!matchId && !matchName && !matchPhone) return;
       }
 
-      const statusPriority = {
-        'Cancelled': 5,
-        'Delivered': 4,
-        'Shipped': 3,
-        'Out for Delivery': 3,
-        'Processing': 2,
-        'Confirmed': 1,
-        'Order Confirmed': 1,
-        'Pending': 0
-      };
-
       if (!orderMap.has(key)) {
         orderMap.set(key, o);
       } else {
         const existing = orderMap.get(key);
-        const existingPriority = statusPriority[existing.orderStatus] || 0;
-        const newPriority = statusPriority[o.orderStatus] || 0;
+        const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+        const newTime = new Date(o.updatedAt || o.createdAt || 0).getTime();
 
-        if (newPriority > existingPriority) {
-          orderMap.set(key, { ...existing, ...o, orderStatus: o.orderStatus });
-        } else if (newPriority === existingPriority && new Date(o.updatedAt || 0) > new Date(existing.updatedAt || 0)) {
-          orderMap.set(key, { ...existing, ...o });
+        if (newTime >= existingTime) {
+          orderMap.set(key, { ...existing, ...o, orderStatus: o.orderStatus || existing.orderStatus });
         }
       }
     });
@@ -133,17 +142,25 @@ exports.getAdminOrders = async (req, res) => {
 // @route GET /api/admin/orders/:id
 exports.getAdminOrderById = async (req, res) => {
   try {
-    const order = await Order.findById(req.params.id)
-      .populate('user', 'name email phone')
-      .populate('orderItems.product', 'name price thumbnail sku stock')
-      .catch(() => null);
+    const searchId = req.params.id;
+    let order = null;
+    if (mongoose.connection.readyState === 1) {
+      order = await Order.findOne(buildOrderQuery(searchId))
+        .populate('user', 'name email phone')
+        .populate('orderItems.product', 'name price thumbnail sku stock')
+        .catch(() => null);
+    }
 
     if (order) {
       return res.json(order);
     }
   } catch (error) {}
 
-  const memOrder = (memoryOrders || []).find(o => String(o._id) === String(req.params.id));
+  const memOrder = (memoryOrders || []).find(o => 
+    String(o._id) === String(req.params.id) || 
+    String(o.orderId) === String(req.params.id) ||
+    (o.orderId && o.orderId.replace(/^ORD-/, '') === String(req.params.id).replace(/^ORD-/, ''))
+  );
   if (memOrder) {
     return res.json(memOrder);
   }
@@ -158,19 +175,20 @@ exports.updateAdminOrderStatus = async (req, res) => {
     const { status } = req.body;
     const searchId = req.params.id;
 
-    // Search in MongoDB by _id or orderId
-    let order = await Order.findOne({
-      $or: [
-        ...(searchId.match(/^[0-9a-fA-F]{24}$/) ? [{ _id: searchId }] : []),
-        { _id: searchId },
-        { orderId: searchId }
-      ]
-    }).catch(() => null);
+    if (!status) {
+      return res.status(400).json({ message: 'Status is required' });
+    }
+
+    let order = null;
+    if (mongoose.connection.readyState === 1) {
+      order = await Order.findOne(buildOrderQuery(searchId)).catch(() => null);
+    }
 
     if (order) {
       const previousStatus = order.orderStatus;
       order.orderStatus = status;
       order.updatedAt = new Date();
+      order.statusTimeline = order.statusTimeline || [];
       order.statusTimeline.push({
         status,
         updatedAt: new Date()
@@ -184,8 +202,8 @@ exports.updateAdminOrderStatus = async (req, res) => {
           order.paidAt = new Date();
         }
       } else if (status === 'Cancelled' && previousStatus !== 'Cancelled') {
-        for (const item of order.orderItems) {
-          if (item.product) {
+        for (const item of (order.orderItems || [])) {
+          if (item.product && mongoose.Types.ObjectId.isValid(item.product)) {
             const product = await Product.findById(item.product).catch(() => null);
             if (product) {
               product.stock += (item.qty || 1);
@@ -204,8 +222,12 @@ exports.updateAdminOrderStatus = async (req, res) => {
       const updatedOrder = await order.save();
 
       // Sync memoryOrders store & cached file
-      const allMem = (memoryOrders || []);
-      const memOrder = allMem.find(o => String(o._id) === String(searchId) || String(o.orderId) === String(searchId));
+      const cleanKey = searchId.replace(/^ORD-/, '');
+      const memOrder = (memoryOrders || []).find(o => 
+        String(o._id) === searchId || 
+        String(o.orderId) === searchId ||
+        (o.orderId && o.orderId.replace(/^ORD-/, '') === cleanKey)
+      );
       if (memOrder) {
         memOrder.orderStatus = status;
         memOrder.updatedAt = new Date();
@@ -222,7 +244,13 @@ exports.updateAdminOrderStatus = async (req, res) => {
 
     // Memory order fallback
     const allMem = getMergedMemoryOrders ? getMergedMemoryOrders() : (memoryOrders || []);
-    const memOrder = allMem.find(o => String(o._id) === String(searchId) || String(o.orderId) === String(searchId));
+    const cleanKey = searchId.replace(/^ORD-/, '');
+    const memOrder = allMem.find(o => 
+      String(o._id) === searchId || 
+      String(o.orderId) === searchId ||
+      (o.orderId && o.orderId.replace(/^ORD-/, '') === cleanKey)
+    );
+
     if (memOrder) {
       memOrder.orderStatus = status;
       memOrder.updatedAt = new Date();
@@ -245,6 +273,7 @@ exports.updateAdminOrderStatus = async (req, res) => {
 
     return res.status(404).json({ message: 'Order not found' });
   } catch (error) {
+    console.error('updateAdminOrderStatus error:', error);
     res.status(400).json({ message: error.message });
   }
 };

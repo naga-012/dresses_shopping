@@ -352,18 +352,35 @@ exports.addOrderItems = async (req, res) => {
   }
 };
 
+// Helper to safely build MongoDB $or query for order lookup by _id or orderId
+const buildOrderQuery = (searchId) => {
+  if (!searchId) return {};
+  const rawId = String(searchId).trim();
+  const cleanId = rawId.replace(/^ORD-/, '');
+  const withPrefix = `ORD-${cleanId}`;
+
+  const orConditions = [
+    { orderId: rawId },
+    { orderId: withPrefix },
+    { orderId: { $regex: new RegExp(`^ORD-${cleanId}$`, 'i') } }
+  ];
+
+  if (mongoose.Types.ObjectId.isValid(rawId)) {
+    orConditions.push({ _id: rawId });
+  }
+
+  return { $or: orConditions };
+};
+
 // @desc Get order by ID
 // @route GET /api/orders/:id
 exports.getOrderById = async (req, res) => {
   const searchId = req.params.id;
   try {
-    const dbOrder = await Order.findOne({
-      $or: [
-        ...(mongoose.Types.ObjectId.isValid(searchId) ? [{ _id: searchId }] : []),
-        { _id: searchId },
-        { orderId: searchId }
-      ]
-    }).populate('user', 'name email').catch(() => null);
+    let dbOrder = null;
+    if (mongoose.connection.readyState === 1) {
+      dbOrder = await Order.findOne(buildOrderQuery(searchId)).populate('user', 'name email').catch(() => null);
+    }
 
     if (dbOrder) {
       return res.json(dbOrder);
@@ -371,7 +388,12 @@ exports.getOrderById = async (req, res) => {
   } catch (error) {}
 
   const allMem = getMergedMemoryOrders();
-  const memOrder = allMem.find(o => String(o._id) === String(searchId) || String(o.orderId) === String(searchId));
+  const cleanKey = String(searchId).replace(/^ORD-/, '');
+  const memOrder = allMem.find(o => 
+    String(o._id) === String(searchId) || 
+    String(o.orderId) === String(searchId) ||
+    (o.orderId && String(o.orderId).replace(/^ORD-/, '') === cleanKey)
+  );
   if (memOrder) {
     return res.json(memOrder);
   }
@@ -399,30 +421,19 @@ exports.getMyOrders = async (req, res) => {
     const orderMap = new Map();
     [...userOrders, ...allMem].forEach(o => {
       if (!o) return;
-      const rawKey = String(o.orderId || o._id);
+      const rawKey = String(o.orderId || o._id || '');
       const key = rawKey.replace(/^ORD-/, '');
-      const statusPriority = {
-        'Cancelled': 5,
-        'Delivered': 4,
-        'Shipped': 3,
-        'Out for Delivery': 3,
-        'Processing': 2,
-        'Confirmed': 1,
-        'Order Confirmed': 1,
-        'Pending': 0
-      };
+      if (!key) return;
 
       if (!orderMap.has(key)) {
         orderMap.set(key, o);
       } else {
         const existing = orderMap.get(key);
-        const existingPriority = statusPriority[existing.orderStatus] || 0;
-        const newPriority = statusPriority[o.orderStatus] || 0;
+        const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+        const newTime = new Date(o.updatedAt || o.createdAt || 0).getTime();
 
-        if (newPriority > existingPriority) {
-          orderMap.set(key, { ...existing, ...o, orderStatus: o.orderStatus });
-        } else if (newPriority === existingPriority && new Date(o.updatedAt || 0) > new Date(existing.updatedAt || 0)) {
-          orderMap.set(key, { ...existing, ...o });
+        if (newTime >= existingTime) {
+          orderMap.set(key, { ...existing, ...o, orderStatus: o.orderStatus || existing.orderStatus });
         }
       }
     });
@@ -450,23 +461,26 @@ exports.getOrders = async (req, res) => {
 // @route PUT /api/orders/:id/status
 exports.updateOrderStatus = async (req, res) => {
   try {
-    const { orderStatus } = req.body;
+    const { orderStatus, status } = req.body;
+    const newStatus = orderStatus || status;
     const searchId = req.params.id;
 
-    let order = await Order.findOne({
-      $or: [
-        ...(mongoose.Types.ObjectId.isValid(searchId) ? [{ _id: searchId }] : []),
-        { _id: searchId },
-        { orderId: searchId }
-      ]
-    }).catch(() => null);
+    if (!newStatus) {
+      return res.status(400).json({ message: 'Order status is required' });
+    }
+
+    let order = null;
+    if (mongoose.connection.readyState === 1) {
+      order = await Order.findOne(buildOrderQuery(searchId)).catch(() => null);
+    }
 
     if (order) {
-      order.orderStatus = orderStatus;
+      order.orderStatus = newStatus;
       order.updatedAt = Date.now();
-      order.statusTimeline.push({ status: orderStatus, updatedAt: Date.now() });
+      order.statusTimeline = order.statusTimeline || [];
+      order.statusTimeline.push({ status: newStatus, updatedAt: Date.now() });
 
-      if (orderStatus === 'Delivered') {
+      if (newStatus === 'Delivered') {
         order.isDelivered = true;
         order.deliveredAt = Date.now();
         if (order.paymentMethod === 'COD') {
@@ -478,9 +492,14 @@ exports.updateOrderStatus = async (req, res) => {
       const updatedOrder = await order.save();
 
       // Sync memory store
-      const memOrder = (memoryOrders || []).find(o => String(o._id) === String(searchId) || String(o.orderId) === String(searchId));
+      const cleanKey = String(searchId).replace(/^ORD-/, '');
+      const memOrder = (memoryOrders || []).find(o => 
+        String(o._id) === String(searchId) || 
+        String(o.orderId) === String(searchId) ||
+        (o.orderId && String(o.orderId).replace(/^ORD-/, '') === cleanKey)
+      );
       if (memOrder) {
-        memOrder.orderStatus = orderStatus;
+        memOrder.orderStatus = newStatus;
         memOrder.updatedAt = new Date();
       }
       getMergedMemoryOrders();
@@ -491,12 +510,18 @@ exports.updateOrderStatus = async (req, res) => {
       return res.json(updatedOrder);
     }
 
-    const memOrder = (memoryOrders || []).find(o => String(o._id) === String(searchId) || String(o.orderId) === String(searchId));
+    const cleanKey = String(searchId).replace(/^ORD-/, '');
+    const memOrder = (memoryOrders || []).find(o => 
+      String(o._id) === String(searchId) || 
+      String(o.orderId) === String(searchId) ||
+      (o.orderId && String(o.orderId).replace(/^ORD-/, '') === cleanKey)
+    );
+
     if (memOrder) {
-      memOrder.orderStatus = orderStatus;
+      memOrder.orderStatus = newStatus;
       memOrder.updatedAt = new Date();
       memOrder.statusTimeline = memOrder.statusTimeline || [];
-      memOrder.statusTimeline.push({ status: orderStatus, updatedAt: Date.now() });
+      memOrder.statusTimeline.push({ status: newStatus, updatedAt: Date.now() });
 
       getMergedMemoryOrders();
 

@@ -25,34 +25,23 @@ exports.getAdminDashboardStats = async (req, res) => {
 
     const allMem = getMergedMemoryOrders ? getMergedMemoryOrders() : (memoryOrders || []);
 
-    // Deduplicate orders seamlessly by normalized key
+    // Deduplicate orders seamlessly by normalized key preserving latest updated status
     const orderMap = new Map();
     [...dbOrders, ...allMem].forEach(o => {
       if (!o) return;
-      const rawKey = String(o.orderId || o._id);
+      const rawKey = String(o.orderId || o._id || '');
       const key = rawKey.replace(/^ORD-/, '');
-      const statusPriority = {
-        'Cancelled': 5,
-        'Delivered': 4,
-        'Shipped': 3,
-        'Out for Delivery': 3,
-        'Processing': 2,
-        'Confirmed': 1,
-        'Order Confirmed': 1,
-        'Pending': 0
-      };
+      if (!key) return;
 
       if (!orderMap.has(key)) {
         orderMap.set(key, o);
       } else {
         const existing = orderMap.get(key);
-        const existingPriority = statusPriority[existing.orderStatus] || 0;
-        const newPriority = statusPriority[o.orderStatus] || 0;
+        const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+        const newTime = new Date(o.updatedAt || o.createdAt || 0).getTime();
 
-        if (newPriority > existingPriority) {
-          orderMap.set(key, { ...existing, ...o, orderStatus: o.orderStatus });
-        } else if (newPriority === existingPriority && new Date(o.updatedAt || 0) > new Date(existing.updatedAt || 0)) {
-          orderMap.set(key, { ...existing, ...o });
+        if (newTime >= existingTime) {
+          orderMap.set(key, { ...existing, ...o, orderStatus: o.orderStatus || existing.orderStatus });
         }
       }
     });
