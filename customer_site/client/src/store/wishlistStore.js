@@ -1,5 +1,18 @@
 import { create } from 'zustand';
 import toast from 'react-hot-toast';
+import { FALLBACK_PRODUCTS } from '../data/fallbackProducts';
+
+const resolveProductObject = (item) => {
+  if (!item) return null;
+  if (typeof item === 'object' && item.name && (item.images || item.thumbnail)) {
+    return item;
+  }
+  const idStr = typeof item === 'object' ? (item._id || item.id || item.slug) : String(item);
+  if (!idStr) return null;
+  const found = FALLBACK_PRODUCTS.find(p => String(p._id) === String(idStr) || String(p.id) === String(idStr) || p.slug === idStr);
+  if (found) return found;
+  return typeof item === 'object' ? item : { _id: idStr, name: 'Fashion Product', price: 500, images: ['/uploads/cap1.png'] };
+};
 
 const getInitialWishlist = () => {
   try {
@@ -7,7 +20,18 @@ const getInitialWishlist = () => {
     if (!saved) return [];
     const parsed = JSON.parse(saved);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter(item => item && (item._id || item.id || (typeof item === 'string' && item)));
+
+    const map = new Map();
+    parsed.forEach(rawItem => {
+      const resolved = resolveProductObject(rawItem);
+      if (resolved) {
+        const idKey = String(resolved._id || resolved.id || resolved.slug || '');
+        if (idKey && !map.has(idKey)) {
+          map.set(idKey, resolved);
+        }
+      }
+    });
+    return Array.from(map.values());
   } catch (e) {
     return [];
   }
@@ -18,28 +42,26 @@ export const useWishlistStore = create((set, get) => ({
 
   toggleWishlist: (product) => {
     if (!product) return;
-    const targetId = typeof product === 'object' ? (product._id || product.id || product.slug) : product;
+    const resolvedProduct = resolveProductObject(product) || product;
+    const targetId = String(resolvedProduct._id || resolvedProduct.id || resolvedProduct.slug || (typeof product === 'string' ? product : ''));
     if (!targetId) return;
+
     const currentWishlist = get().wishlist || [];
     const exists = currentWishlist.some((item) => {
-      const itemId = typeof item === 'object' ? (item._id || item.id || item.slug) : item;
-      return itemId && String(itemId) === String(targetId);
+      const itemId = String(item._id || item.id || item.slug || (typeof item === 'string' ? item : ''));
+      return itemId && (itemId === targetId || itemId.replace(/^prod_/, '') === targetId.replace(/^prod_/, ''));
     });
 
     let updatedWishlist;
     if (exists) {
       updatedWishlist = currentWishlist.filter((item) => {
-        const itemId = typeof item === 'object' ? (item._id || item.id || item.slug) : item;
-        return itemId && String(itemId) !== String(targetId);
+        const itemId = String(item._id || item.id || item.slug || (typeof item === 'string' ? item : ''));
+        return itemId && itemId !== targetId && itemId.replace(/^prod_/, '') !== targetId.replace(/^prod_/, '');
       });
-      toast.success(`Removed ${product.name || 'item'} from Wishlist`, {
-        icon: '💔'
-      });
+      toast.success(`Removed ${resolvedProduct.name || 'item'} from Wishlist`, { icon: '💔' });
     } else {
-      updatedWishlist = [...currentWishlist, typeof product === 'object' ? product : { _id: targetId, id: targetId }];
-      toast.success(`Saved ${product.name || 'item'} to Wishlist`, {
-        icon: '❤️'
-      });
+      updatedWishlist = [...currentWishlist, resolvedProduct];
+      toast.success(`Saved ${resolvedProduct.name || 'item'} to Wishlist`, { icon: '❤️' });
     }
 
     try {
@@ -50,12 +72,12 @@ export const useWishlistStore = create((set, get) => ({
 
   isWishlisted: (productOrId) => {
     if (!productOrId) return false;
-    const targetId = typeof productOrId === 'object' ? (productOrId._id || productOrId.id || productOrId.slug) : productOrId;
+    const targetId = String(typeof productOrId === 'object' ? (productOrId._id || productOrId.id || productOrId.slug) : productOrId);
     if (!targetId) return false;
     const list = get().wishlist || [];
     return list.some((item) => {
-      const itemId = typeof item === 'object' ? (item._id || item.id || item.slug) : item;
-      return itemId && String(itemId) === String(targetId);
+      const itemId = String(typeof item === 'object' ? (item._id || item.id || item.slug) : item);
+      return itemId && (itemId === targetId || itemId.replace(/^prod_/, '') === targetId.replace(/^prod_/, ''));
     });
   },
 

@@ -133,18 +133,30 @@ export default function Shop() {
   const displayedProducts = React.useMemo(() => {
     if (selectedCategory === '❤️ Liked Items') {
       const itemMap = new Map();
-      // First add products saved in wishlistStore
+      const allAvailable = [...products, ...FALLBACK_PRODUCTS];
+
+      // 1. Add all items stored in wishlistStore
       (wishlist || []).forEach(item => {
-        if (item && typeof item === 'object') {
-          const id = item._id || item.id;
-          if (id) itemMap.set(String(id), item);
+        if (!item) return;
+        let pObj = typeof item === 'object' && item.name ? item : null;
+        const idKey = String(item._id || item.id || item.slug || (typeof item === 'string' ? item : ''));
+
+        if (!pObj && idKey) {
+          pObj = allAvailable.find(p => String(p._id || p.id || p.slug) === idKey);
+        }
+        if (pObj) {
+          const mapKey = String(pObj._id || pObj.id || pObj.slug || idKey);
+          if (mapKey) itemMap.set(mapKey, pObj);
         }
       });
-      // Then add any products from current catalog state that are wishlisted
-      products.forEach(p => {
+
+      // 2. Also include any product from allAvailable that is wishlisted
+      allAvailable.forEach(p => {
         if (p && isWishlisted(p)) {
-          const id = p._id || p.id;
-          if (id) itemMap.set(String(id), p);
+          const mapKey = String(p._id || p.id || p.slug);
+          if (mapKey && !itemMap.has(mapKey)) {
+            itemMap.set(mapKey, p);
+          }
         }
       });
 
