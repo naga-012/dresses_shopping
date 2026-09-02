@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { Lock, Mail, User, ArrowRight, ShieldCheck, Sparkles, Award, Truck, CheckCircle, LogOut, ShoppingBag } from 'lucide-react';
+import { Lock, Mail, User, Phone, ArrowRight, ShieldCheck, Sparkles, Award, Truck, CheckCircle, LogOut, ShoppingBag } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import Auth3DMannequin from '../components/3d/Auth3DMannequin';
 import toast from 'react-hot-toast';
@@ -19,6 +19,7 @@ export default function Auth() {
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
 
   const { user, login, register, googleLogin, logout, isLoading } = useAuthStore();
@@ -30,7 +31,7 @@ export default function Auth() {
     if (isLogin) {
       success = await login(email, password);
     } else {
-      success = await register(name, email, password);
+      success = await register(name, email, password, phone);
       if (success) localStorage.setItem('mensverse_has_account', 'true');
     }
     if (success) {
@@ -361,21 +362,39 @@ export default function Auth() {
               {/* Form */}
               <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 {!isLogin && (
-                  <div>
-                    <label style={{ fontSize: '12px', color: '#aaa', fontWeight: 600 }}>Full Name</label>
-                    <div style={{ position: 'relative', marginTop: '4px' }}>
-                      <User size={18} color="#71717a" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
-                      <input
-                        type="text"
-                        required
-                        autoComplete="off"
-                        placeholder="John Doe"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        style={{ width: '100%', background: '#121218', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '12px 12px 12px 40px', borderRadius: '10px', outline: 'none', fontSize: '13px' }}
-                      />
+                  <>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#aaa', fontWeight: 600 }}>Full Name</label>
+                      <div style={{ position: 'relative', marginTop: '4px' }}>
+                        <User size={18} color="#71717a" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                        <input
+                          type="text"
+                          required
+                          autoComplete="off"
+                          placeholder="John Doe"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          style={{ width: '100%', background: '#121218', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '12px 12px 12px 40px', borderRadius: '10px', outline: 'none', fontSize: '13px' }}
+                        />
+                      </div>
                     </div>
-                  </div>
+
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#aaa', fontWeight: 600 }}>Mobile Phone Number</label>
+                      <div style={{ position: 'relative', marginTop: '4px' }}>
+                        <Phone size={18} color="#71717a" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
+                        <input
+                          type="tel"
+                          required
+                          autoComplete="off"
+                          placeholder="+91 98765 43210"
+                          value={phone}
+                          onChange={(e) => setPhone(e.target.value)}
+                          style={{ width: '100%', background: '#121218', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '12px 12px 12px 40px', borderRadius: '10px', outline: 'none', fontSize: '13px' }}
+                        />
+                      </div>
+                    </div>
+                  </>
                 )}
 
                 <div>

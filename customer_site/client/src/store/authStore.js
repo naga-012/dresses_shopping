@@ -35,13 +35,14 @@ export const useAuthStore = create((set, get) => ({
     }
   },
 
-  register: async (name, email, password) => {
+  register: async (name, email, password, phone) => {
     set({ isLoading: true });
     try {
-      const res = await API.post('/auth/register', { name, email, password });
+      const res = await API.post('/auth/register', { name, email, password, phone });
       const { token, ...user } = res.data;
       localStorage.setItem('mensverse_token', token);
       localStorage.setItem('mensverse_user', JSON.stringify(user));
+      localStorage.setItem('mensverse_has_account', 'true');
       set({ user, token, isLoading: false });
       toast.success(`Account created successfully!`);
       return true;
@@ -51,11 +52,13 @@ export const useAuthStore = create((set, get) => ({
         _id: 'usr_' + Date.now(),
         name: name || 'Valued Member',
         email,
+        phone: phone || '',
         role: 'user'
       };
       const fallbackToken = 'demo_token_' + Date.now();
       localStorage.setItem('mensverse_token', fallbackToken);
       localStorage.setItem('mensverse_user', JSON.stringify(fallbackUser));
+      localStorage.setItem('mensverse_has_account', 'true');
       set({ user: fallbackUser, token: fallbackToken, isLoading: false });
       toast.success(`Account created successfully!`);
       return true;
