@@ -25,13 +25,21 @@ import {
 const OrdersPage = () => {
   const [searchParams] = useSearchParams();
   const highlightId = searchParams.get('id');
+  const initialStatus = searchParams.get('status') || 'All';
 
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState(initialStatus);
   const [selectedOrder, setSelectedOrder] = useState(null);
   const { lastNotification } = useSocket();
+
+  useEffect(() => {
+    const statusFromUrl = searchParams.get('status');
+    if (statusFromUrl) {
+      setStatusFilter(statusFromUrl);
+    }
+  }, [searchParams]);
 
   const fetchOrders = async () => {
     try {

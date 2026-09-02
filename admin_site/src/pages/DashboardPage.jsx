@@ -73,28 +73,32 @@ const DashboardPage = () => {
       value: `₹${(stats?.totalRevenue || 0).toLocaleString()}`,
       subtitle: `Today: ₹${(stats?.todayRevenue || 0).toLocaleString()}`,
       icon: IndianRupee,
-      color: 'from-amber-500/20 to-amber-600/10 text-amber-400 border-amber-500/20'
+      color: 'from-amber-500/20 to-amber-600/10 text-amber-400 border-amber-500/20 hover:border-amber-500/50',
+      link: '/analytics'
     },
     {
       title: 'Total Orders',
       value: stats?.totalOrders || 0,
       subtitle: `Today: ${stats?.todayOrders || 0} new orders`,
       icon: ShoppingBag,
-      color: 'from-blue-500/20 to-blue-600/10 text-blue-400 border-blue-500/20'
+      color: 'from-blue-500/20 to-blue-600/10 text-blue-400 border-blue-500/20 hover:border-blue-500/50',
+      link: '/orders'
     },
     {
       title: 'Total Products',
       value: stats?.totalProducts || 0,
       subtitle: `${stats?.outOfStockCount || 0} Out of Stock`,
       icon: Package,
-      color: 'from-purple-500/20 to-purple-600/10 text-purple-400 border-purple-500/20'
+      color: 'from-purple-500/20 to-purple-600/10 text-purple-400 border-purple-500/20 hover:border-purple-500/50',
+      link: '/products'
     },
     {
       title: 'Total Customers',
       value: stats?.totalCustomers || 0,
       subtitle: 'Registered members',
       icon: Users,
-      color: 'from-emerald-500/20 to-emerald-600/10 text-emerald-400 border-emerald-500/20'
+      color: 'from-emerald-500/20 to-emerald-600/10 text-emerald-400 border-emerald-500/20 hover:border-emerald-500/50',
+      link: '/customers'
     }
   ];
 
@@ -121,16 +125,27 @@ const DashboardPage = () => {
         {statCards.map((card, idx) => {
           const Icon = card.icon;
           return (
-            <div key={idx} className={`glass-card p-5 rounded-2xl border bg-gradient-to-br ${card.color} transition-all hover:scale-[1.01]`}>
+            <Link
+              key={idx}
+              to={card.link}
+              className={`glass-card p-5 rounded-2xl border bg-gradient-to-br ${card.color} transition-all duration-200 hover:scale-[1.02] hover:shadow-lg cursor-pointer group block`}
+            >
               <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">{card.title}</span>
-                <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-700/50">
+                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 group-hover:text-slate-200 transition-colors">
+                  {card.title}
+                </span>
+                <div className="p-2 rounded-xl bg-slate-900/60 border border-slate-700/50 group-hover:border-amber-500/40 transition-colors">
                   <Icon size={18} />
                 </div>
               </div>
               <p className="text-2xl font-extrabold text-white tracking-tight">{card.value}</p>
-              <p className="text-xs text-slate-400 mt-1">{card.subtitle}</p>
-            </div>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-xs text-slate-400">{card.subtitle}</p>
+                <span className="text-[11px] font-bold text-amber-400 opacity-80 group-hover:opacity-100 group-hover:translate-x-0.5 transition-all flex items-center gap-0.5">
+                  View <ArrowUpRight size={12} />
+                </span>
+              </div>
+            </Link>
           );
         })}
       </div>
@@ -198,13 +213,17 @@ const DashboardPage = () => {
               { label: 'Delivered', count: stats?.statusCounts?.delivered || 0, color: 'bg-emerald-500' },
               { label: 'Cancelled', count: stats?.statusCounts?.cancelled || 0, color: 'bg-rose-500' },
             ].map((item, i) => (
-              <div key={i} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800">
+              <Link
+                key={i}
+                to={`/orders?status=${item.label}`}
+                className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800 hover:border-slate-700 hover:bg-slate-800/60 transition-all cursor-pointer group"
+              >
                 <div className="flex items-center gap-2.5">
                   <span className={`w-3 h-3 rounded-full ${item.color}`} />
-                  <span className="text-xs font-semibold text-slate-300">{item.label}</span>
+                  <span className="text-xs font-semibold text-slate-300 group-hover:text-white transition-colors">{item.label}</span>
                 </div>
                 <span className="text-xs font-bold text-white">{item.count}</span>
-              </div>
+              </Link>
             ))}
           </div>
           <Link to="/orders" className="mt-4 w-full py-2 text-center rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-200 block border border-slate-700">

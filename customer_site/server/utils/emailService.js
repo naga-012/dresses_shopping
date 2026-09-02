@@ -312,41 +312,63 @@ const generateCustomerOrderHtml = (order) => {
 };
 
 /**
- * Sends order notification email to the store owner / admin
+ * Helper to create Nodemailer Transporter tailored for Gmail or custom SMTP
+ */
+const createTransporter = (emailUser, emailPass, emailHost, emailPort) => {
+  const isGmail = (emailHost && emailHost.includes('gmail')) || (emailUser && emailUser.includes('@gmail.com'));
+  if (isGmail) {
+    return nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: emailUser,
+        pass: emailPass
+      }
+    });
+  }
+
+  return nodemailer.createTransport({
+    host: emailHost || 'smtp.gmail.com',
+    port: Number(emailPort || 587),
+    secure: Number(emailPort) === 465,
+    auth: { user: emailUser, pass: emailPass },
+    tls: { rejectUnauthorized: false }
+  });
+};
+
+/**
+ * Sends order notification email to the store owner / admin AND order confirmation email to the customer
  */
 const sendOrderNotificationEmail = async (order) => {
   if (!order) return;
 
   const orderKey = String(order._id || order.orderId || '');
-  const recipientEmail = process.env.NOTIFICATION_EMAIL || 'myakalanagarjun09@gmail.com';
+  const recipientEmail = process.env.NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || 'myakalanagarjun09@gmail.com';
   const emailUser = process.env.EMAIL_USER || recipientEmail;
-  const emailPass = process.env.EMAIL_PASS;
+  const emailPass = process.env.EMAIL_PASS ? process.env.EMAIL_PASS.trim() : '';
   const emailHost = process.env.EMAIL_HOST || 'smtp.gmail.com';
   const emailPort = Number(process.env.EMAIL_PORT || 587);
   const orderId = order.orderId || order._id || 'N/A';
 
+  const isConfigured = emailPass && emailPass !== 'your_gmail_app_password' && emailPass !== 'nagarjun yadav';
+
   // 1. Send Admin Alert Email
   if (orderKey && !sentOrderEmails.has(orderKey)) {
-    if (!emailPass || emailPass === 'your_gmail_app_password') {
+    if (!isConfigured) {
       console.log('\n======================================================');
-      console.log(`[ORDER EMAIL NOTIFICATION - PENDING CREDENTIAL SETUP]`);
+      console.log(`[ORDER EMAIL NOTIFICATION - ACTION REQUIRED]`);
       console.log(`Notification Target Email: ${recipientEmail}`);
       console.log(`New Order ID: ${orderId}`);
       console.log(`Customer: ${order.shippingAddress?.fullName || 'Customer'}`);
       console.log(`Total: ₹${order.totalPrice || 0} (${order.paymentMethod || 'COD'})`);
-      console.log(`To receive live emails directly in your inbox, set EMAIL_PASS in server/.env with your Gmail App Password.`);
+      console.log(`\n⚠️  Gmail requires a 16-character Google App Password (not your normal password).`);
+      console.log(`Please set EMAIL_PASS in server/.env with your 16-character App Password:`);
+      console.log(`1. Go to https://myaccount.google.com/apppasswords`);
+      console.log(`2. Generate an App Password for 'Mail'`);
+      console.log(`3. Paste the 16-character code into EMAIL_PASS in customer_site/server/.env`);
       console.log('======================================================\n');
-      sentOrderEmails.add(orderKey);
     } else {
       try {
-        const transporter = nodemailer.createTransport({
-          host: emailHost,
-          port: emailPort,
-          secure: emailPort === 465,
-          auth: { user: emailUser, pass: emailPass },
-          tls: { rejectUnauthorized: false }
-        });
-
+        const transporter = createTransporter(emailUser, emailPass, emailHost, emailPort);
         const mailOptions = {
           from: `"SAHA Men's Store Orders" <${emailUser}>`,
           to: recipientEmail,
@@ -355,29 +377,26 @@ const sendOrderNotificationEmail = async (order) => {
         };
 
         const info = await transporter.sendMail(mailOptions);
-        console.log(`[Email Service] Admin order alert sent to ${recipientEmail}. Message ID: ${info.messageId}`);
+        console.log(`[Email Service] ✅ Admin order alert sent to ${recipientEmail}. Message ID: ${info.messageId}`);
         sentOrderEmails.add(orderKey);
       } catch (error) {
-        console.error(`[Email Service Error] Failed to send admin alert for Order ${orderId}:`, error.message);
+        console.error(`[Email Service Error] ❌ Failed to send admin alert for Order ${orderId}:`, error.message);
+        if (error.code === 'EAUTH' || error.message.includes('Invalid login') || error.message.includes('534-5.7.9')) {
+          console.error(`--> GMAIL AUTH ERROR: Google rejected the login attempt.`);
+          console.error(`--> Reason: Gmail requires a 16-character App Password from https://myaccount.google.com/apppasswords`);
+        }
       }
     }
   }
 
   // 2. Send Customer Confirmation Email
-  const customerEmail = order.shippingAddress?.email || (typeof order.user === 'object' ? order.user?.email : null);
-  if (customerEmail && typeof customerEmail === 'string' && customerEmail.includes('@') && !customerEmail.endsWith('@saha.com')) {
+  const customerEmail = order.shippingAddress?.email || order.userEmail || order.email || (typeof order.user === 'object' ? order.user?.email : null) || recipientEmail;
+  if (customerEmail && typeof customerEmail === 'string' && customerEmail.includes('@')) {
     const customerKey = `${orderKey}_cust_${customerEmail}`;
     if (!sentCustomerEmails.has(customerKey)) {
-      if (emailPass && emailPass !== 'your_gmail_app_password') {
+      if (isConfigured) {
         try {
-          const transporter = nodemailer.createTransport({
-            host: emailHost,
-            port: emailPort,
-            secure: emailPort === 465,
-            auth: { user: emailUser, pass: emailPass },
-            tls: { rejectUnauthorized: false }
-          });
-
+          const transporter = createTransporter(emailUser, emailPass, emailHost, emailPort);
           const mailOptions = {
             from: `"SAHA Men's Store" <${emailUser}>`,
             to: customerEmail,
@@ -386,14 +405,13 @@ const sendOrderNotificationEmail = async (order) => {
           };
 
           const info = await transporter.sendMail(mailOptions);
-          console.log(`[Email Service] Customer confirmation email sent to ${customerEmail}. Message ID: ${info.messageId}`);
+          console.log(`[Email Service] ✅ Customer confirmation email sent to ${customerEmail}. Message ID: ${info.messageId}`);
           sentCustomerEmails.add(customerKey);
         } catch (error) {
-          console.error(`[Email Service Error] Failed to send customer confirmation to ${customerEmail}:`, error.message);
+          console.error(`[Email Service Error] ❌ Failed to send customer confirmation to ${customerEmail}:`, error.message);
         }
       } else {
-        console.log(`[Email Service] Customer confirmation email queued for ${customerEmail} (Pending EMAIL_PASS)`);
-        sentCustomerEmails.add(customerKey);
+        console.log(`[Email Service] Customer confirmation email queued for ${customerEmail} (Awaiting valid EMAIL_PASS in server/.env)`);
       }
     }
   }
@@ -402,3 +420,4 @@ const sendOrderNotificationEmail = async (order) => {
 module.exports = {
   sendOrderNotificationEmail
 };
+
