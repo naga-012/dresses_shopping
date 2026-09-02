@@ -211,7 +211,7 @@ export default function Home() {
             gap: '24px'
           }}>
             {trendingProducts.map((p, idx) => {
-              const pId = p._id || p.id;
+              const pId = p._id || p.id || p.slug || (p.name ? encodeURIComponent(p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')) : `item-${idx}`);
               const productQty = getProductQty(p);
 
               return (

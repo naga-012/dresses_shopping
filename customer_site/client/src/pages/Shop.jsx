@@ -117,10 +117,11 @@ export default function Shop() {
   };
 
   const handleDressClick = (product) => {
+    if (!product) return;
     setSelectedProduct(product);
     if (product.category) setActiveCategory(product.category);
     toast.success(`Opening 3D Fashion Viewer for ${product.name}...`);
-    const pId = product._id || product.id;
+    const pId = product._id || product.id || product.slug || (product.name ? encodeURIComponent(product.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')) : 'item');
     navigate(`/product/${pId}`);
   };
 
@@ -270,8 +271,8 @@ export default function Shop() {
           gap: '24px'
         }}>
           {sortedProducts.map((p, idx) => {
-            const pId = p._id || p.id;
-            const selId = selectedProduct?._id || selectedProduct?.id;
+            const pId = p._id || p.id || p.slug || (p.name ? encodeURIComponent(p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')) : `item-${idx}`);
+            const selId = selectedProduct?._id || selectedProduct?.id || selectedProduct?.slug;
             const isCurrentlyOnDoll = Boolean(pId && selId && String(pId) === String(selId));
             const productQty = getProductQty(p);
 

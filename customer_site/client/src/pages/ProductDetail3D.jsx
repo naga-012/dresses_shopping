@@ -39,12 +39,17 @@ export default function ProductDetail3D() {
   const { wishlist, toggleWishlist, isWishlisted } = useWishlistStore();
 
   const [product, setProduct] = useState(() => {
-    if (selectedProduct && (String(selectedProduct._id) === String(id) || String(selectedProduct.id) === String(id) || selectedProduct.slug === id)) {
+    if (selectedProduct) {
       return selectedProduct;
     }
-    const localFound = FALLBACK_PRODUCTS.find(p => String(p._id) === String(id) || String(p.id) === String(id) || p.slug === id);
+    const localFound = FALLBACK_PRODUCTS.find(p =>
+      String(p._id) === String(id) ||
+      String(p.id) === String(id) ||
+      p.slug === id ||
+      (p.name && encodeURIComponent(p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')) === id)
+    );
     if (localFound) return localFound;
-    return selectedProduct || FALLBACK_PRODUCTS[0];
+    return FALLBACK_PRODUCTS[0];
   });
   const [loading, setLoading] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
@@ -55,6 +60,11 @@ export default function ProductDetail3D() {
   }, [id]);
 
   const fetchProductDetails = async () => {
+    if (!id || id === 'undefined') {
+      if (selectedProduct) setProduct(selectedProduct);
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await API.get(`/products/${id}`).catch(() => API.get(`/products?search=${id}`));
@@ -64,8 +74,15 @@ export default function ProductDetail3D() {
         setProduct(fetched);
         setSelectedProduct(fetched);
         if (fetched.colors && fetched.colors.length > 0) setSelectedColor(fetched.colors[0]);
+      } else if (selectedProduct) {
+        setProduct(selectedProduct);
       } else {
-        const localFound = FALLBACK_PRODUCTS.find(p => String(p._id) === String(id) || String(p.id) === String(id) || p.slug === id);
+        const localFound = FALLBACK_PRODUCTS.find(p =>
+          String(p._id) === String(id) ||
+          String(p.id) === String(id) ||
+          p.slug === id ||
+          (p.name && encodeURIComponent(p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')) === id)
+        );
         if (localFound) {
           setProduct(localFound);
           setSelectedProduct(localFound);
@@ -74,12 +91,7 @@ export default function ProductDetail3D() {
       }
     } catch (err) {
       console.error(err);
-      const localFound = FALLBACK_PRODUCTS.find(p => String(p._id) === String(id) || String(p.id) === String(id) || p.slug === id);
-      if (localFound) {
-        setProduct(localFound);
-        setSelectedProduct(localFound);
-        if (localFound.colors && localFound.colors.length > 0) setSelectedColor(localFound.colors[0]);
-      }
+      if (selectedProduct) setProduct(selectedProduct);
     } finally {
       setLoading(false);
     }
