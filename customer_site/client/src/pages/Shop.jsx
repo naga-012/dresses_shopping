@@ -130,22 +130,42 @@ export default function Shop() {
     fetchProducts();
   };
 
-  const displayedProducts = products.filter((p) => {
+  const displayedProducts = React.useMemo(() => {
     if (selectedCategory === '❤️ Liked Items') {
-      return isWishlisted(p._id || p.id);
+      const itemMap = new Map();
+      // First add products saved in wishlistStore
+      (wishlist || []).forEach(item => {
+        if (item && typeof item === 'object') {
+          const id = item._id || item.id;
+          if (id) itemMap.set(String(id), item);
+        }
+      });
+      // Then add any products from current catalog state that are wishlisted
+      products.forEach(p => {
+        if (p && isWishlisted(p)) {
+          const id = p._id || p.id;
+          if (id) itemMap.set(String(id), p);
+        }
+      });
+
+      let res = Array.from(itemMap.values());
+      if (searchQuery) {
+        res = res.filter(p => p.name?.toLowerCase().includes(searchQuery.toLowerCase()));
+      }
+      return res;
     }
-    return true;
-  });
+    return products;
+  }, [selectedCategory, wishlist, products, searchQuery, isWishlisted]);
 
   const sortedProducts = [...displayedProducts].sort((a, b) => {
     if (selectedCategory === '🔥 New Arrivals' || searchParams.get('filter') === 'new') {
       return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
     }
-    const priceA = a.discountPrice || a.price;
-    const priceB = b.discountPrice || b.price;
+    const priceA = a.discountPrice || a.price || 0;
+    const priceB = b.discountPrice || b.price || 0;
     if (sortBy === 'low') return priceA - priceB;
     if (sortBy === 'high') return priceB - priceA;
-    if (sortBy === 'rating') return b.rating - a.rating;
+    if (sortBy === 'rating') return (b.rating || 0) - (a.rating || 0);
     return 0;
   });
 
@@ -220,7 +240,17 @@ export default function Shop() {
       {loading ? (
         <div style={{ textAlign: 'center', padding: '80px', color: '#d4af37', fontWeight: 600 }}>Loading collection...</div>
       ) : sortedProducts.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '80px', color: '#71717a' }}>No products found matching your search.</div>
+        <div style={{ textAlign: 'center', padding: '80px', color: '#71717a' }}>
+          {selectedCategory === '❤️ Liked Items' ? (
+            <div>
+              <Heart size={48} color="#ef4444" style={{ margin: '0 auto 16px auto', display: 'block', opacity: 0.8 }} />
+              <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#fff', marginBottom: '8px' }}>No Liked Items Yet</h3>
+              <p style={{ fontSize: '13px', color: '#a1a1aa' }}>Click the ❤️ heart icon on any product in the catalog to save it to your wishlist!</p>
+            </div>
+          ) : (
+            'No products found matching your search.'
+          )}
+        </div>
       ) : (
         <div className="responsive-product-grid" style={{
           display: 'grid',
