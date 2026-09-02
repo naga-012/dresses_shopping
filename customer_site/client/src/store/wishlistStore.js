@@ -18,41 +18,43 @@ export const useWishlistStore = create((set, get) => ({
 
   toggleWishlist: (product) => {
     if (!product) return;
-    const targetId = typeof product === 'object' ? (product._id || product.id) : product;
+    const targetId = typeof product === 'object' ? (product._id || product.id || product.slug) : product;
     if (!targetId) return;
     const currentWishlist = get().wishlist || [];
     const exists = currentWishlist.some((item) => {
-      const itemId = typeof item === 'object' ? (item._id || item.id) : item;
+      const itemId = typeof item === 'object' ? (item._id || item.id || item.slug) : item;
       return itemId && String(itemId) === String(targetId);
     });
 
     let updatedWishlist;
     if (exists) {
       updatedWishlist = currentWishlist.filter((item) => {
-        const itemId = typeof item === 'object' ? (item._id || item.id) : item;
+        const itemId = typeof item === 'object' ? (item._id || item.id || item.slug) : item;
         return itemId && String(itemId) !== String(targetId);
       });
       toast.success(`Removed ${product.name || 'item'} from Wishlist`, {
         icon: '💔'
       });
     } else {
-      updatedWishlist = [...currentWishlist, product];
+      updatedWishlist = [...currentWishlist, typeof product === 'object' ? product : { _id: targetId, id: targetId }];
       toast.success(`Saved ${product.name || 'item'} to Wishlist`, {
         icon: '❤️'
       });
     }
 
-    localStorage.setItem('mensverse_wishlist', JSON.stringify(updatedWishlist));
+    try {
+      localStorage.setItem('mensverse_wishlist', JSON.stringify(updatedWishlist));
+    } catch (e) {}
     set({ wishlist: updatedWishlist });
   },
 
   isWishlisted: (productOrId) => {
     if (!productOrId) return false;
-    const targetId = typeof productOrId === 'object' ? (productOrId._id || productOrId.id) : productOrId;
+    const targetId = typeof productOrId === 'object' ? (productOrId._id || productOrId.id || productOrId.slug) : productOrId;
     if (!targetId) return false;
     const list = get().wishlist || [];
     return list.some((item) => {
-      const itemId = typeof item === 'object' ? (item._id || item.id) : item;
+      const itemId = typeof item === 'object' ? (item._id || item.id || item.slug) : item;
       return itemId && String(itemId) === String(targetId);
     });
   },

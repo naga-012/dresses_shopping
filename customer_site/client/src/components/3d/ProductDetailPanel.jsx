@@ -2,13 +2,14 @@ import React, { useState } from 'react';
 import { ShoppingBag, Heart, Check, Sparkles, Plus, Minus } from 'lucide-react';
 import { useUIStore } from '../../store/uiStore';
 import { useCartStore } from '../../store/cartStore';
+import { useWishlistStore } from '../../store/wishlistStore';
 import toast from 'react-hot-toast';
 
 export default function ProductDetailPanel() {
   const { selectedProduct, selectedSize, setSelectedSize, selectedColor, setSelectedColor } = useUIStore();
   const { addToCart } = useCartStore();
+  const { toggleWishlist, isWishlisted } = useWishlistStore();
   const [qty, setQty] = useState(1);
-  const [isWishlisted, setIsWishlisted] = useState(false);
 
   if (!selectedProduct) return null;
 
@@ -183,17 +184,15 @@ export default function ProductDetailPanel() {
         </button>
 
         <button
-          onClick={() => {
-            setIsWishlisted(!isWishlisted);
-            toast.success(isWishlisted ? 'Removed from Wishlist' : 'Saved to Wishlist');
-          }}
+          type="button"
+          onClick={() => toggleWishlist(selectedProduct)}
           style={{
             width: '48px',
             height: '48px',
             borderRadius: '12px',
             border: '1px solid rgba(255, 255, 255, 0.15)',
-            background: isWishlisted ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-            color: isWishlisted ? '#ef4444' : '#fff',
+            background: isWishlisted(selectedProduct) ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+            color: isWishlisted(selectedProduct) ? '#ef4444' : '#fff',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -201,7 +200,7 @@ export default function ProductDetailPanel() {
             transition: 'all 0.2s'
           }}
         >
-          <Heart size={20} fill={isWishlisted ? '#ef4444' : 'none'} />
+          <Heart size={20} fill={isWishlisted(selectedProduct) ? '#ef4444' : 'none'} />
         </button>
       </div>
 

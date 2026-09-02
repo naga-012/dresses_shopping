@@ -285,7 +285,9 @@ export default function Shop() {
                   
                   {/* Floating Like Heart Button */}
                   <button
+                    type="button"
                     onClick={(e) => {
+                      e.preventDefault();
                       e.stopPropagation();
                       toggleWishlist(p);
                     }}
