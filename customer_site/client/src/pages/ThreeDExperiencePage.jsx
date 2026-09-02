@@ -47,15 +47,12 @@ export default function ThreeDExperiencePage() {
       const res = await API.get('/products');
       const list = Array.isArray(res.data) ? res.data : (Array.isArray(res.data?.products) ? res.data.products : []);
       setProducts(list);
-      if (list.length > 0 && !selectedProduct) {
-        setSelectedProduct(list[0]);
-      }
     } catch (err) {
       console.error(err);
     }
   };
 
-  const activeProduct = selectedProduct || (products.length > 0 ? products[0] : null);
+  const activeProduct = selectedProduct;
 
   const getImageUrl = (url) => {
     if (!url) return activeProduct?.thumbnail || activeProduct?.images?.[0] || '/uploads/pants1.png';
@@ -70,12 +67,11 @@ export default function ThreeDExperiencePage() {
   const productImages = (Array.isArray(rawImages) ? rawImages : []).map(getImageUrl);
 
   const handleNextSlide = () => {
-    setActiveImageIndex((prev) => (prev + 1) % productImages.length);
+    if (productImages.length > 0) setActiveImageIndex((prev) => (prev + 1) % productImages.length);
   };
 
-
   const handlePrevSlide = () => {
-    setActiveImageIndex((prev) => (prev - 1 + productImages.length) % productImages.length);
+    if (productImages.length > 0) setActiveImageIndex((prev) => (prev - 1 + productImages.length) % productImages.length);
   };
 
   return (
@@ -96,7 +92,7 @@ export default function ThreeDExperiencePage() {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/shop')}
             style={{
               background: 'rgba(255,255,255,0.05)',
               border: '1px solid rgba(255,255,255,0.1)',
@@ -111,27 +107,82 @@ export default function ThreeDExperiencePage() {
               gap: '6px'
             }}
           >
-            <ArrowLeft size={16} /> Back to Store
+            <ArrowLeft size={16} /> Back to Catalog
           </button>
           <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 800, color: '#d4af37', fontFamily: 'Outfit' }}>
-            PRODUCT PHOTO GALLERY & SLIDESHOW
+            3D FASHION EXPERIENCE & SLIDESHOW
           </h2>
         </div>
 
         <div style={{ fontSize: '13px', color: '#aaa' }}>
-          Click thumbnails or arrows to view product angles
+          {activeProduct ? 'Click thumbnails or arrows to view product angles' : 'Select an item from the catalog to fit'}
         </div>
       </div>
 
-      {/* MAIN PRODUCT CAROUSEL & DETAIL LAYOUT */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
-        gap: '40px',
-        padding: '40px 5%',
-        maxWidth: '1280px',
-        margin: '0 auto'
-      }}>
+      {/* MAIN CONTENT AREA */}
+      {!activeProduct ? (
+        <div style={{
+          minHeight: '65vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          padding: '60px 20px'
+        }}>
+          <div style={{
+            width: '90px',
+            height: '90px',
+            borderRadius: '50%',
+            background: 'rgba(212, 175, 55, 0.1)',
+            border: '1px solid rgba(212, 175, 55, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: '24px',
+            color: '#d4af37',
+            boxShadow: '0 0 30px rgba(212,175,55,0.2)'
+          }}>
+            <Sparkles size={42} />
+          </div>
+
+          <h2 style={{ fontFamily: 'Outfit', fontSize: '28px', fontWeight: 900, color: '#fff', marginBottom: '12px' }}>
+            No Item Selected for 3D Experience
+          </h2>
+
+          <p style={{ color: '#aaa', fontSize: '15px', maxWidth: '460px', lineHeight: 1.6, marginBottom: '32px' }}>
+            Click "Fit on 3D Doll" or select any item from the catalog to view its 3D angles, photos, and interactive fitting!
+          </p>
+
+          <button
+            onClick={() => navigate('/shop')}
+            style={{
+              background: '#d4af37',
+              color: '#000',
+              border: 'none',
+              padding: '16px 36px',
+              borderRadius: '30px',
+              fontWeight: 800,
+              fontSize: '15px',
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '10px',
+              boxShadow: '0 8px 30px rgba(212, 175, 55, 0.35)'
+            }}
+          >
+            <ShoppingBag size={18} /> Browse Shop Catalog
+          </button>
+        </div>
+      ) : (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))',
+          gap: '40px',
+          padding: '40px 5%',
+          maxWidth: '1280px',
+          margin: '0 auto'
+        }}>
 
         {/* LEFT COLUMN: INTERACTIVE PHOTO SLIDESHOW CAROUSEL */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -423,8 +474,8 @@ export default function ThreeDExperiencePage() {
             <div style={{ color: '#aaa', textAlign: 'center', padding: '40px' }}>Loading item details...</div>
           )}
         </div>
-
       </div>
+    )}
 
     </div>
   );
