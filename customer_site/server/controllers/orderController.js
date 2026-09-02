@@ -220,17 +220,13 @@ exports.addOrderItems = async (req, res) => {
       return res.status(400).json({ message: 'No order items' });
     }
 
-    // Sanitize order items so product IDs are valid Mongoose ObjectIds
+    // Preserve exact product IDs and names
     const sanitizedOrderItems = orderItems.map(item => ({
       ...item,
-      product: (item.product && mongoose.Types.ObjectId.isValid(item.product))
-        ? item.product
-        : new mongoose.Types.ObjectId()
+      product: item.product || new mongoose.Types.ObjectId().toString()
     }));
 
-    const userId = (req.user?._id && mongoose.Types.ObjectId.isValid(req.user._id))
-      ? req.user._id
-      : new mongoose.Types.ObjectId();
+    const userId = req.user?._id || req.body.user || 'usr_guest';
 
     const orderId = 'ORD-' + Math.floor(100000 + Math.random() * 900000);
 
@@ -406,12 +402,24 @@ exports.getOrderById = async (req, res) => {
 exports.getMyOrders = async (req, res) => {
   try {
     let userOrders = [];
+    const userId = req.user?._id ? String(req.user._id) : null;
+    const userEmail = req.user?.email ? String(req.user.email).toLowerCase() : null;
+
     if (mongoose.connection.readyState === 1) {
-      if (req.user?._id && mongoose.Types.ObjectId.isValid(req.user._id)) {
-        userOrders = await Order.find({ user: req.user._id }).sort('-createdAt').maxTimeMS(2000).catch(() => []);
+      const queries = [];
+      if (userId) queries.push({ user: userId });
+      if (userId && mongoose.Types.ObjectId.isValid(userId)) queries.push({ user: new mongoose.Types.ObjectId(userId) });
+      if (userEmail) {
+        queries.push({ 'shippingAddress.email': userEmail });
+        queries.push({ userEmail: userEmail });
       }
+
+      if (queries.length > 0) {
+        userOrders = await Order.find({ $or: queries }).sort('-createdAt').maxTimeMS(2500).catch(() => []);
+      }
+
       if (!userOrders || userOrders.length === 0) {
-        userOrders = await Order.find({}).sort('-createdAt').limit(30).maxTimeMS(2000).catch(() => []);
+        userOrders = await Order.find({}).sort('-createdAt').limit(30).maxTimeMS(2500).catch(() => []);
       }
     }
 

@@ -187,7 +187,8 @@ export default function Checkout() {
 
       clearCart();
       toast.success('Order placed successfully!');
-      navigate(`/orders/${res.data._id}`);
+      const targetId = res.data?.orderId || res.data?._id;
+      navigate(`/orders/${targetId}`);
     } catch (err) {
       console.error('Order placement error:', err);
       const msg = err.response?.data?.message || (err.code === 'ECONNABORTED' ? 'Request timed out' : 'Failed to place order. Please try again.');

@@ -3,9 +3,9 @@ mongoose.set('bufferCommands', false);
 
 const orderSchema = new mongoose.Schema({
   orderId: { type: String, default: () => 'ORD-' + Math.floor(100000 + Math.random() * 900000) },
-  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  user: { type: mongoose.Schema.Types.Mixed, required: true },
   orderItems: [{
-    product: { type: mongoose.Schema.Types.ObjectId, ref: 'Product', required: true },
+    product: { type: mongoose.Schema.Types.Mixed, required: true },
     name: String,
     image: String,
     price: Number,
