@@ -38,7 +38,14 @@ export default function ProductDetail3D() {
   const { cart, addToCart, decrementProduct, getProductQty } = useCartStore();
   const { wishlist, toggleWishlist, isWishlisted } = useWishlistStore();
 
-  const [product, setProduct] = useState(() => FALLBACK_PRODUCTS.find(p => p._id === id || p.slug === id) || FALLBACK_PRODUCTS[0]);
+  const [product, setProduct] = useState(() => {
+    if (selectedProduct && (String(selectedProduct._id) === String(id) || String(selectedProduct.id) === String(id) || selectedProduct.slug === id)) {
+      return selectedProduct;
+    }
+    const localFound = FALLBACK_PRODUCTS.find(p => String(p._id) === String(id) || String(p.id) === String(id) || p.slug === id);
+    if (localFound) return localFound;
+    return selectedProduct || FALLBACK_PRODUCTS[0];
+  });
   const [loading, setLoading] = useState(false);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
 
@@ -53,22 +60,26 @@ export default function ProductDetail3D() {
       const res = await API.get(`/products/${id}`).catch(() => API.get(`/products?search=${id}`));
       const fetched = Array.isArray(res.data) ? res.data[0] : res.data;
 
-      if (fetched) {
+      if (fetched && (fetched._id || fetched.name)) {
         setProduct(fetched);
         setSelectedProduct(fetched);
         if (fetched.colors && fetched.colors.length > 0) setSelectedColor(fetched.colors[0]);
       } else {
-        const localFound = FALLBACK_PRODUCTS.find(p => p._id === id || p.slug === id) || FALLBACK_PRODUCTS[0];
+        const localFound = FALLBACK_PRODUCTS.find(p => String(p._id) === String(id) || String(p.id) === String(id) || p.slug === id);
+        if (localFound) {
+          setProduct(localFound);
+          setSelectedProduct(localFound);
+          if (localFound.colors && localFound.colors.length > 0) setSelectedColor(localFound.colors[0]);
+        }
+      }
+    } catch (err) {
+      console.error(err);
+      const localFound = FALLBACK_PRODUCTS.find(p => String(p._id) === String(id) || String(p.id) === String(id) || p.slug === id);
+      if (localFound) {
         setProduct(localFound);
         setSelectedProduct(localFound);
         if (localFound.colors && localFound.colors.length > 0) setSelectedColor(localFound.colors[0]);
       }
-    } catch (err) {
-      console.error(err);
-      const localFound = FALLBACK_PRODUCTS.find(p => p._id === id || p.slug === id) || FALLBACK_PRODUCTS[0];
-      setProduct(localFound);
-      setSelectedProduct(localFound);
-      if (localFound.colors && localFound.colors.length > 0) setSelectedColor(localFound.colors[0]);
     } finally {
       setLoading(false);
     }

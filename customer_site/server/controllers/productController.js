@@ -54,19 +54,30 @@ exports.getProducts = async (req, res) => {
 // @route GET /api/products/:id
 exports.getProductById = async (req, res) => {
   try {
+    const searchId = req.params.id;
     let product = null;
-    if (req.params.id && req.params.id.match(/^[0-9a-fA-F]{24}$/)) {
-      product = await Product.findById(req.params.id).populate('collectionId').catch(() => null);
+
+    if (searchId && searchId.match(/^[0-9a-fA-F]{24}$/)) {
+      product = await Product.findById(searchId).populate('collectionId').catch(() => null);
     }
     if (!product) {
-      product = initialProducts.find(p => p._id === req.params.id || p.slug === req.params.id);
+      product = await Product.findOne({
+        $or: [
+          { slug: searchId },
+          { name: { $regex: new RegExp(`^${searchId.replace(/-/g, ' ')}$`, 'i') } }
+        ]
+      }).catch(() => null);
     }
+    if (!product) {
+      product = initialProducts.find(p => String(p._id) === String(searchId) || p.slug === searchId);
+    }
+
     if (product) {
       return res.json(product);
     }
     res.status(404).json({ message: 'Product not found' });
   } catch (error) {
-    const local = initialProducts.find(p => p._id === req.params.id || p.slug === req.params.id);
+    const local = initialProducts.find(p => String(p._id) === String(req.params.id) || p.slug === req.params.id);
     if (local) return res.json(local);
     res.status(404).json({ message: 'Product not found' });
   }
