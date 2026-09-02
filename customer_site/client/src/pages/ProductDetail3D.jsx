@@ -86,18 +86,14 @@ export default function ProductDetail3D() {
   };
 
   const getImageUrl = (url) => {
-    if (!url) return '/uploads/cap1.png';
+    if (!url) return product?.thumbnail || product?.images?.[0] || '/uploads/pants1.png';
     if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) return url;
     return url.startsWith('/') ? url : `/${url}`;
   };
 
-  const rawImages = Array.isArray(product?.images) && product.images.length > 0 ? product.images : [
-    '/uploads/cap1.png',
-    '/uploads/cap2.png',
-    '/uploads/cap3.png',
-    '/uploads/cap4.png',
-    '/uploads/cap5.png'
-  ];
+  const rawImages = (Array.isArray(product?.images) && product.images.length > 0)
+    ? product.images
+    : (product?.thumbnail ? [product.thumbnail] : (product?.image ? [product.image] : ['/uploads/pants1.png']));
 
   const productImages = (Array.isArray(rawImages) ? rawImages : []).map(getImageUrl);
 

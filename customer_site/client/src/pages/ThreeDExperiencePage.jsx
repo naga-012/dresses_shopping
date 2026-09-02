@@ -55,19 +55,17 @@ export default function ThreeDExperiencePage() {
     }
   };
 
+  const activeProduct = selectedProduct || (products.length > 0 ? products[0] : null);
+
   const getImageUrl = (url) => {
-    if (!url) return '/uploads/cap1.png';
+    if (!url) return activeProduct?.thumbnail || activeProduct?.images?.[0] || '/uploads/pants1.png';
     if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('blob:') || url.startsWith('data:')) return url;
     return url.startsWith('/') ? url : `/${url}`;
   };
 
-  const rawImages = Array.isArray(selectedProduct?.images) && selectedProduct.images.length > 0 ? selectedProduct.images : [
-    '/uploads/cap1.png',
-    '/uploads/cap2.png',
-    '/uploads/cap3.png',
-    '/uploads/cap4.png',
-    '/uploads/cap5.png'
-  ];
+  const rawImages = (Array.isArray(activeProduct?.images) && activeProduct.images.length > 0)
+    ? activeProduct.images
+    : (activeProduct?.thumbnail ? [activeProduct.thumbnail] : (activeProduct?.image ? [activeProduct.image] : ['/uploads/pants1.png']));
 
   const productImages = (Array.isArray(rawImages) ? rawImages : []).map(getImageUrl);
 
@@ -260,16 +258,16 @@ export default function ThreeDExperiencePage() {
           flexDirection: 'column',
           gap: '24px'
         }}>
-          {selectedProduct ? (
+          {activeProduct ? (
             <>
               <div>
                 <span style={{ fontSize: '11px', fontWeight: 800, color: '#d4af37', letterSpacing: '0.18em', textTransform: 'uppercase' }}>
-                  {selectedProduct.brand || 'URBAN FIT'}
+                  {activeProduct.brand || 'URBAN FIT'}
                 </span>
                 <h1 style={{ fontFamily: 'Outfit', fontSize: '28px', fontWeight: 900, color: '#fff', margin: '4px 0 8px 0', lineHeight: 1.2 }}>
-                  {selectedProduct.name}
+                  {activeProduct.name}
                 </h1>
-                <div style={{ fontSize: '13px', color: '#aaa' }}>Category: {selectedProduct.category}</div>
+                <div style={{ fontSize: '13px', color: '#aaa' }}>Category: {activeProduct.category}</div>
 
                 {/* Rating */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '10px', fontSize: '13px', color: '#d4af37' }}>
@@ -279,10 +277,10 @@ export default function ThreeDExperiencePage() {
                   <span style={{ color: '#aaa', fontSize: '12px' }}>(128 reviews)</span>
                 </div>
 
-                {/* Price Tag: ₹300 */}
+                {/* Price Tag */}
                 <div style={{ marginTop: '18px', display: 'flex', alignItems: 'baseline', gap: '12px' }}>
                   <span style={{ fontSize: '36px', fontWeight: 900, color: '#d4af37', fontFamily: 'Outfit' }}>
-                    ₹{(selectedProduct.discountPrice || selectedProduct.price || 300).toLocaleString()}
+                    ₹{(activeProduct.discountPrice || activeProduct.price || 300).toLocaleString()}
                   </span>
                   <span style={{ fontSize: '13px', color: '#71717a' }}>Inclusive of all taxes</span>
                 </div>
@@ -290,22 +288,22 @@ export default function ThreeDExperiencePage() {
 
               {/* Description */}
               <p style={{ fontSize: '13px', color: '#a1a1aa', lineHeight: 1.6, borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '16px' }}>
-                {selectedProduct.description || 'Premium vintage washed cotton baseball cap featuring high-density embroidery, adjustable brass buckle strap, and 6-panel eyelet construction.'}
+                {activeProduct.description || 'Premium quality apparel from URBAN FIT fashion collection.'}
               </p>
 
               {/* Size Section: Dynamic sizes for Caps/Bandanas (Free Size), Shoes (6-11), Pants/Jeans (26-38), Shirts (S-XL) */}
               <div>
                 <div style={{ fontSize: '12px', fontWeight: 600, color: '#ddd', marginBottom: '8px' }}>
-                  {(selectedProduct.category === 'Caps' || selectedProduct.category === 'Accessories' || selectedProduct.name?.toLowerCase().includes('cap') || selectedProduct.name?.toLowerCase().includes('bandana') || selectedProduct.name?.toLowerCase().includes('scarf'))
+                  {(activeProduct.category === 'Caps' || activeProduct.category === 'Accessories' || activeProduct.name?.toLowerCase().includes('cap') || activeProduct.name?.toLowerCase().includes('bandana') || activeProduct.name?.toLowerCase().includes('scarf'))
                     ? 'Size'
-                    : (selectedProduct.category === 'Shoes' || selectedProduct.name?.toLowerCase().includes('shoes') || selectedProduct.name?.toLowerCase().includes('sneakers'))
+                    : (activeProduct.category === 'Shoes' || activeProduct.name?.toLowerCase().includes('shoes') || activeProduct.name?.toLowerCase().includes('sneakers'))
                       ? 'Select Shoe Size (UK / India)'
-                      : (selectedProduct.category === 'Jeans' || selectedProduct.category === 'Pants' || selectedProduct.category === 'Shorts' || selectedProduct.name?.toLowerCase().includes('jeans') || selectedProduct.name?.toLowerCase().includes('pants'))
+                      : (activeProduct.category === 'Jeans' || activeProduct.category === 'Pants' || activeProduct.category === 'Shorts' || activeProduct.name?.toLowerCase().includes('jeans') || activeProduct.name?.toLowerCase().includes('pants'))
                         ? 'Select Waist Size (Inches)'
                         : 'Select Size'}
                 </div>
 
-                {(selectedProduct.category === 'Caps' || selectedProduct.category === 'Accessories' || selectedProduct.name?.toLowerCase().includes('cap') || selectedProduct.name?.toLowerCase().includes('bandana') || selectedProduct.name?.toLowerCase().includes('scarf')) ? (
+                {(activeProduct.category === 'Caps' || activeProduct.category === 'Accessories' || activeProduct.name?.toLowerCase().includes('cap') || activeProduct.name?.toLowerCase().includes('bandana') || activeProduct.name?.toLowerCase().includes('scarf')) ? (
                   <div style={{
                     background: 'rgba(212, 175, 55, 0.12)',
                     border: '1px solid #d4af37',
@@ -324,9 +322,9 @@ export default function ThreeDExperiencePage() {
 
                   <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                     {(
-                      (selectedProduct.category === 'Shoes' || selectedProduct.name?.toLowerCase().includes('shoes') || selectedProduct.name?.toLowerCase().includes('sneakers'))
+                      (activeProduct.category === 'Shoes' || activeProduct.name?.toLowerCase().includes('shoes') || activeProduct.name?.toLowerCase().includes('sneakers'))
                         ? ['6', '7', '8', '9', '10', '11']
-                        : (selectedProduct.category === 'Jeans' || selectedProduct.category === 'Pants' || selectedProduct.category === 'Shorts' || selectedProduct.name?.toLowerCase().includes('jeans') || selectedProduct.name?.toLowerCase().includes('pants'))
+                        : (activeProduct.category === 'Jeans' || activeProduct.category === 'Pants' || activeProduct.category === 'Shorts' || activeProduct.name?.toLowerCase().includes('jeans') || activeProduct.name?.toLowerCase().includes('pants'))
                           ? ['26', '28', '30', '32', '34', '36', '38']
                           : ['S', 'M', 'L', 'XL']
                     ).map((sz) => (
@@ -353,12 +351,9 @@ export default function ThreeDExperiencePage() {
                 )}
               </div>
 
-
-
-
               {/* Quantity Controls & Action Buttons */}
               {(() => {
-                const productQty = getProductQty(selectedProduct);
+                const productQty = getProductQty(activeProduct);
 
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '16px' }}>
@@ -368,11 +363,11 @@ export default function ThreeDExperiencePage() {
                           ✓ Added to Cart ({productQty} in cart)
                         </div>
                         <div style={{ display: 'inline-flex', alignItems: 'center', background: '#181820', borderRadius: '8px', border: '1px solid #d4af37', padding: '4px' }}>
-                          <button onClick={() => decrementProduct(selectedProduct)} style={{ background: 'none', border: 'none', color: '#fff', padding: '6px 14px', cursor: 'pointer' }}>
+                          <button onClick={() => decrementProduct(activeProduct)} style={{ background: 'none', border: 'none', color: '#fff', padding: '6px 14px', cursor: 'pointer' }}>
                             <Minus size={16} />
                           </button>
                           <span style={{ fontSize: '15px', fontWeight: 800, color: '#d4af37', padding: '0 14px' }}>{productQty}</span>
-                          <button onClick={() => addToCart(selectedProduct, selectedSize, selectedColor, 1)} style={{ background: 'none', border: 'none', color: '#fff', padding: '6px 14px', cursor: 'pointer' }}>
+                          <button onClick={() => addToCart(activeProduct, selectedSize, selectedColor, 1)} style={{ background: 'none', border: 'none', color: '#fff', padding: '6px 14px', cursor: 'pointer' }}>
                             <Plus size={16} />
                           </button>
                         </div>
@@ -380,7 +375,7 @@ export default function ThreeDExperiencePage() {
                     ) : null}
 
                     <button
-                      onClick={() => addToCart(selectedProduct, selectedSize, selectedColor, 1)}
+                      onClick={() => addToCart(activeProduct, selectedSize, selectedColor, 1)}
                       style={{
                         width: '100%',
                         background: productQty > 0 ? 'rgba(212, 175, 55, 0.15)' : '#d4af37',
@@ -398,12 +393,12 @@ export default function ThreeDExperiencePage() {
                         boxShadow: productQty > 0 ? 'none' : '0 4px 20px rgba(212,175,55,0.35)'
                       }}
                     >
-                      <ShoppingBag size={20} /> {productQty > 0 ? `ADD MORE (₹${((selectedProduct?.discountPrice || selectedProduct?.price || 300)).toLocaleString()})` : `ADD TO CART (₹${((selectedProduct?.discountPrice || selectedProduct?.price || 300)).toLocaleString()})`}
+                      <ShoppingBag size={20} /> {productQty > 0 ? `ADD MORE (₹${((activeProduct?.discountPrice || activeProduct?.price || 300)).toLocaleString()})` : `ADD TO CART (₹${((activeProduct?.discountPrice || activeProduct?.price || 300)).toLocaleString()})`}
                     </button>
 
                     <button
                       onClick={() => {
-                        if (productQty === 0) addToCart(selectedProduct, selectedSize, selectedColor, 1);
+                        if (productQty === 0) addToCart(activeProduct, selectedSize, selectedColor, 1);
                         window.location.href = '/checkout';
                       }}
                       style={{
