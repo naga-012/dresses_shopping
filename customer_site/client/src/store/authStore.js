@@ -23,6 +23,7 @@ export const useAuthStore = create((set, get) => ({
       const { token, ...user } = res.data;
       localStorage.setItem('mensverse_token', token);
       localStorage.setItem('mensverse_user', JSON.stringify(user));
+      localStorage.setItem('mensverse_has_account', 'true');
       set({ user, token, isLoading: false });
       toast.success(`Welcome back, ${user.name}`);
       return true;

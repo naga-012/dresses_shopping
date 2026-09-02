@@ -1,12 +1,22 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Lock, Mail, User, ArrowRight, ShieldCheck, Sparkles, Award, Truck, CheckCircle, LogOut, ShoppingBag } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
 import Auth3DMannequin from '../components/3d/Auth3DMannequin';
 import toast from 'react-hot-toast';
 
 export default function Auth() {
-  const [isLogin, setIsLogin] = useState(true);
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const modeParam = searchParams.get('mode');
+
+  const hasAccount = localStorage.getItem('mensverse_has_account');
+  const [isLogin, setIsLogin] = useState(() => {
+    if (modeParam === 'register') return false;
+    if (modeParam === 'login') return true;
+    return Boolean(hasAccount);
+  });
+
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -21,6 +31,7 @@ export default function Auth() {
       success = await login(email, password);
     } else {
       success = await register(name, email, password);
+      if (success) localStorage.setItem('mensverse_has_account', 'true');
     }
     if (success) {
       navigate('/');
@@ -30,6 +41,7 @@ export default function Auth() {
   const handleGoogleSignIn = async () => {
     const promptEmail = window.prompt("Enter your Gmail address to sign in:", "customer@gmail.com");
     if (promptEmail && promptEmail.trim()) {
+      localStorage.setItem('mensverse_has_account', 'true');
       const ok = await googleLogin(promptEmail.trim());
       if (ok) navigate('/');
     }
