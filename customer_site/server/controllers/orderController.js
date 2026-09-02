@@ -112,15 +112,32 @@ const saveCachedOrders = (orders) => {
 const getMergedMemoryOrders = () => {
   const fileOrders = readCachedOrders();
   const map = new Map();
-  [...seedOrders, ...memoryOrders, ...fileOrders].forEach(o => {
-    if (o && (o._id || o.orderId)) {
-      const key = String(o._id || o.orderId);
-      if (!map.has(key) || new Date(o.updatedAt || o.createdAt || 0) > new Date(map.get(key).updatedAt || map.get(key).createdAt || 0)) {
-        map.set(key, o);
+  [...seedOrders, ...memoryOrders, ...fileOrders].forEach(rawO => {
+    if (!rawO) return;
+    const o = rawO.toObject ? rawO.toObject() : rawO;
+    const rawId = String(o.orderId || o._id || '');
+    const key = rawId.replace(/^ORD-/, '');
+    if (!key) return;
+
+    const oTime = new Date(o.updatedAt || o.createdAt || 0).getTime();
+    if (!map.has(key)) {
+      map.set(key, o);
+    } else {
+      const existing = map.get(key);
+      const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+      if (oTime >= existingTime) {
+        map.set(key, { ...existing, ...o, orderStatus: o.orderStatus || existing.orderStatus });
       }
     }
   });
-  const merged = Array.from(map.values()).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+  const merged = Array.from(map.values()).sort((a, b) => {
+    const timeA = new Date(a.createdAt || 0).getTime();
+    const timeB = new Date(b.createdAt || 0).getTime();
+    return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
+  });
+
+  global.memoryOrders = [...merged];
   saveCachedOrders(merged);
   return merged;
 };
@@ -131,27 +148,39 @@ exports.getMergedMemoryOrders = getMergedMemoryOrders;
 // @route POST /api/orders/sync
 exports.syncOrderCache = async (req, res) => {
   try {
-    const orderData = req.body;
-    if (orderData && (orderData._id || orderData.orderId)) {
-      const existingIdx = memoryOrders.findIndex(o => String(o._id) === String(orderData._id) || String(o.orderId) === String(orderData.orderId));
+    const bodyData = req.body;
+    const ordersToSync = Array.isArray(bodyData) ? bodyData : (bodyData ? [bodyData] : []);
+
+    if (ordersToSync.length === 0) {
+      return res.status(400).json({ message: 'Invalid order data' });
+    }
+
+    const io = req.app.get('io');
+    const syncedOrders = [];
+
+    for (const orderData of ordersToSync) {
+      if (!orderData || (!orderData._id && !orderData.orderId)) continue;
+
+      const rawId = String(orderData.orderId || orderData._id);
+      const cleanKey = rawId.replace(/^ORD-/, '');
+      
+      const existingIdx = memoryOrders.findIndex(o => 
+        String(o._id) === String(orderData._id) || 
+        String(o.orderId) === String(orderData.orderId) ||
+        (o.orderId && String(o.orderId).replace(/^ORD-/, '') === cleanKey)
+      );
+
       if (existingIdx >= 0) {
         memoryOrders[existingIdx] = { ...memoryOrders[existingIdx], ...orderData };
       } else {
         memoryOrders.unshift(orderData);
       }
-      getMergedMemoryOrders();
 
       // Persist to MongoDB if connection is ready and order isn't in DB yet
       if (mongoose.connection.readyState === 1) {
         try {
-          const searchId = orderData._id || orderData.orderId;
-          const exists = await Order.findOne({
-            $or: [
-              ...(mongoose.Types.ObjectId.isValid(searchId) ? [{ _id: searchId }] : []),
-              { _id: searchId },
-              { orderId: searchId }
-            ]
-          }).catch(() => null);
+          const searchId = orderData.orderId || orderData._id;
+          const exists = await Order.findOne(buildOrderQuery(searchId)).catch(() => null);
 
           if (!exists) {
             const sanitizedOrderItems = (orderData.orderItems || []).map(item => ({
@@ -167,36 +196,47 @@ exports.syncOrderCache = async (req, res) => {
                 ? req.user._id
                 : new mongoose.Types.ObjectId();
 
+            const formattedOrderId = orderData.orderId
+              ? (orderData.orderId.startsWith('ORD-') ? orderData.orderId : `ORD-${orderData.orderId}`)
+              : `ORD-${cleanKey || Math.floor(100000 + Math.random() * 900000)}`;
+
             const newOrder = new Order({
-              _id: mongoose.Types.ObjectId.isValid(orderData._id) ? orderData._id : new mongoose.Types.ObjectId(),
-              orderId: orderData.orderId || ('ORD-' + Math.floor(100000 + Math.random() * 900000)),
+              _id: (orderData._id && mongoose.Types.ObjectId.isValid(orderData._id)) ? orderData._id : new mongoose.Types.ObjectId(),
+              orderId: formattedOrderId,
               user: userId,
               orderItems: sanitizedOrderItems,
               shippingAddress: orderData.shippingAddress || {},
               paymentMethod: orderData.paymentMethod || 'COD',
-              itemsPrice: orderData.itemsPrice || 0,
+              itemsPrice: orderData.itemsPrice || orderData.totalPrice || 0,
               taxPrice: orderData.taxPrice || 0,
               shippingPrice: orderData.shippingPrice || 0,
               totalPrice: orderData.totalPrice || 0,
               isPaid: orderData.isPaid || false,
               paidAt: orderData.paidAt || null,
               orderStatus: orderData.orderStatus || 'Pending',
-              statusTimeline: orderData.statusTimeline || [{ status: 'Pending', updatedAt: new Date() }],
+              statusTimeline: orderData.statusTimeline || [{ status: orderData.orderStatus || 'Pending', updatedAt: new Date() }],
               createdAt: orderData.createdAt || new Date()
             });
-            await newOrder.save().catch(() => {});
+            await newOrder.save().catch((err) => console.warn('Sync order save err:', err.message));
           }
         } catch (e) {
           console.warn('Sync order DB save warning:', e.message);
         }
       }
 
+      syncedOrders.push(orderData);
+
+      // Trigger socket event for admin notification
+      if (io) {
+        io.emit('order:created', orderData);
+      }
+
       // Trigger email notification asynchronously
       sendOrderNotificationEmail(orderData).catch(err => console.error('Email notification error:', err));
-
-      return res.json({ success: true, order: orderData });
     }
-    return res.status(400).json({ message: 'Invalid order data' });
+
+    getMergedMemoryOrders();
+    return res.json({ success: true, count: syncedOrders.length, orders: syncedOrders });
   } catch (err) {
     return res.status(500).json({ message: err.message });
   }
@@ -273,18 +313,19 @@ exports.addOrderItems = async (req, res) => {
         }
       }
 
-      memoryOrders.unshift(createdOrder);
+      const plainOrder = createdOrder.toObject ? createdOrder.toObject() : createdOrder;
+      memoryOrders.unshift(plainOrder);
       getMergedMemoryOrders();
 
       // Emit Socket.IO notification to admin clients
       if (io) {
-        io.emit('order:created', createdOrder);
+        io.emit('order:created', plainOrder);
       }
 
       // Trigger email notification asynchronously
-      sendOrderNotificationEmail(createdOrder).catch(err => console.error('Email notification error:', err));
+      sendOrderNotificationEmail(plainOrder).catch(err => console.error('Email notification error:', err));
 
-      return res.status(201).json(createdOrder);
+      return res.status(201).json(plainOrder);
     }
 
     // Fallback response if MongoDB is offline / unconfigured
@@ -415,11 +456,11 @@ exports.getMyOrders = async (req, res) => {
       }
 
       if (queries.length > 0) {
-        userOrders = await Order.find({ $or: queries }).sort('-createdAt').maxTimeMS(2500).catch(() => []);
+        userOrders = await Order.find({ $or: queries }).lean().sort('-createdAt').maxTimeMS(2500).catch(() => []);
       }
 
       if (!userOrders || userOrders.length === 0) {
-        userOrders = await Order.find({}).sort('-createdAt').limit(30).maxTimeMS(2500).catch(() => []);
+        userOrders = await Order.find({}).lean().sort('-createdAt').limit(50).maxTimeMS(2500).catch(() => []);
       }
     }
 
@@ -458,10 +499,41 @@ exports.getMyOrders = async (req, res) => {
 // @route GET /api/orders
 exports.getOrders = async (req, res) => {
   try {
-    const orders = await Order.find().populate('user', 'id name email').sort('-createdAt');
-    res.json(orders);
+    let dbOrders = [];
+    if (mongoose.connection.readyState === 1) {
+      dbOrders = await Order.find().lean().populate('user', 'id name email phone').sort('-createdAt').maxTimeMS(2500).catch(() => []);
+    }
+
+    const allMem = getMergedMemoryOrders ? getMergedMemoryOrders() : (memoryOrders || []);
+    const orderMap = new Map();
+
+    [...dbOrders, ...allMem].forEach(o => {
+      if (!o) return;
+      const rawId = String(o._id || '');
+      const rawOrderId = String(o.orderId || '');
+      const cleanKey = (rawOrderId || rawId).replace(/^ORD-/, '');
+      if (!cleanKey && !rawId) return;
+
+      const key = cleanKey || rawId;
+
+      if (!orderMap.has(key)) {
+        orderMap.set(key, o);
+      } else {
+        const existing = orderMap.get(key);
+        const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+        const newTime = new Date(o.updatedAt || o.createdAt || 0).getTime();
+
+        if (newTime >= existingTime) {
+          orderMap.set(key, { ...existing, ...o, orderStatus: o.orderStatus || existing.orderStatus });
+        }
+      }
+    });
+
+    const combined = Array.from(orderMap.values()).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    res.json(combined);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    const allMem = getMergedMemoryOrders ? getMergedMemoryOrders() : (memoryOrders || []);
+    res.json(allMem);
   }
 };
 

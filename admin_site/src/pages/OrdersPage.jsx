@@ -27,8 +27,21 @@ const OrdersPage = () => {
   const highlightId = searchParams.get('id');
   const initialStatus = searchParams.get('status') || 'All';
 
-  const [orders, setOrders] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [orders, setOrders] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('saha_admin_orders_cache') || '[]');
+    } catch (e) {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cached = JSON.parse(localStorage.getItem('saha_admin_orders_cache') || '[]');
+      return cached.length === 0;
+    } catch (e) {
+      return true;
+    }
+  });
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState(initialStatus);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -41,34 +54,103 @@ const OrdersPage = () => {
     }
   }, [searchParams]);
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (showLoading = false) => {
     try {
-      setLoading(true);
+      if (showLoading && orders.length === 0) setLoading(true);
       const params = {};
       if (search) params.search = search;
       if (statusFilter && statusFilter !== 'All') params.status = statusFilter;
 
       const res = await api.get('/admin/orders', { params });
-      setOrders(res.data.orders || []);
+      const serverOrders = Array.isArray(res.data?.orders) ? res.data.orders : [];
 
-      if (highlightId && res.data.orders) {
-        const found = res.data.orders.find(o => o._id === highlightId);
+      // Merge server orders with local persistent cache
+      let localCache = [];
+      try {
+        localCache = JSON.parse(localStorage.getItem('saha_admin_orders_cache') || '[]');
+      } catch (e) {}
+
+      const orderMap = new Map();
+      [...localCache, ...serverOrders].forEach(o => {
+        if (!o) return;
+        const rawKey = String(o.orderId || o._id || '');
+        const key = rawKey.replace(/^ORD-/, '');
+        if (!key) return;
+
+        if (!orderMap.has(key)) {
+          orderMap.set(key, o);
+        } else {
+          const existing = orderMap.get(key);
+          const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
+          const newTime = new Date(o.updatedAt || o.createdAt || 0).getTime();
+          if (newTime >= existingTime) {
+            orderMap.set(key, { ...existing, ...o, orderStatus: o.orderStatus || existing.orderStatus });
+          }
+        }
+      });
+
+      const allMerged = Array.from(orderMap.values()).sort((a, b) => {
+        const tA = new Date(a.createdAt || 0).getTime();
+        const tB = new Date(b.createdAt || 0).getTime();
+        return (isNaN(tB) ? 0 : tB) - (isNaN(tA) ? 0 : tA);
+      });
+
+      try {
+        localStorage.setItem('saha_admin_orders_cache', JSON.stringify(allMerged));
+      } catch (e) {}
+
+      // Apply UI filters to merged list
+      let displayOrders = allMerged;
+      if (statusFilter && statusFilter !== 'All') {
+        displayOrders = displayOrders.filter(o => {
+          if (statusFilter === 'Confirmed') return o.orderStatus === 'Confirmed' || o.orderStatus === 'Order Confirmed';
+          if (statusFilter === 'Shipped') return o.orderStatus === 'Shipped' || o.orderStatus === 'Out for Delivery';
+          return String(o.orderStatus || '').toLowerCase() === String(statusFilter).toLowerCase();
+        });
+      }
+      if (search) {
+        const s = search.toLowerCase();
+        displayOrders = displayOrders.filter(o =>
+          String(o.orderId || o._id || '').toLowerCase().includes(s) ||
+          String(o.shippingAddress?.fullName || o.user?.name || '').toLowerCase().includes(s) ||
+          String(o.shippingAddress?.phone || o.user?.phone || '').toLowerCase().includes(s)
+        );
+      }
+
+      setOrders(displayOrders);
+
+      if (highlightId && allMerged.length > 0) {
+        const found = allMerged.find(o => String(o._id) === highlightId || String(o.orderId) === highlightId);
         if (found) setSelectedOrder(found);
       }
+
+      // Auto restore: if local cache has orders that server doesn't have, re-sync to server
+      const serverKeys = new Set(serverOrders.map(o => String(o.orderId || o._id || '').replace(/^ORD-/, '')));
+      const missingOnServer = allMerged.filter(o => !serverKeys.has(String(o.orderId || o._id || '').replace(/^ORD-/, '')));
+      if (missingOnServer.length > 0 && serverOrders.length > 0) {
+        api.post('/orders/sync', missingOnServer).catch(() => {});
+      }
     } catch (error) {
-      toast.error('Failed to load orders');
+      if (showLoading && orders.length === 0) toast.error('Failed to load orders');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchOrders();
-  }, [statusFilter]);
+    fetchOrders(true);
+
+    // Auto-poll every 8 seconds as fail-safe fallback so new orders always appear seamlessly
+    const interval = setInterval(() => {
+      fetchOrders(false);
+    }, 8000);
+
+    return () => clearInterval(interval);
+  }, [statusFilter, search]);
 
   useEffect(() => {
     if (lastNotification) {
-      fetchOrders();
+      fetchOrders(false);
     }
   }, [lastNotification]);
 
@@ -77,12 +159,18 @@ const OrdersPage = () => {
       const res = await api.patch(`/admin/orders/${orderId}/status`, { status: newStatus });
       const updatedObj = res.data?.order || res.data;
       toast.success(`Order status updated to ${newStatus}`);
-      setOrders(prev => prev.map(o => {
-        const isMatch = String(o._id) === String(orderId) ||
-          String(o.orderId) === String(orderId) ||
-          (o.orderId && String(o.orderId).replace(/^ORD-/, '') === String(orderId).replace(/^ORD-/, ''));
-        return isMatch ? { ...o, ...updatedObj, orderStatus: newStatus } : o;
-      }));
+      setOrders(prev => {
+        const updated = prev.map(o => {
+          const isMatch = String(o._id) === String(orderId) ||
+            String(o.orderId) === String(orderId) ||
+            (o.orderId && String(o.orderId).replace(/^ORD-/, '') === String(orderId).replace(/^ORD-/, ''));
+          return isMatch ? { ...o, ...updatedObj, orderStatus: newStatus } : o;
+        });
+        try {
+          localStorage.setItem('saha_admin_orders_cache', JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
       if (selectedOrder && (String(selectedOrder._id) === String(orderId) || String(selectedOrder.orderId) === String(orderId))) {
         setSelectedOrder(prev => ({ ...prev, ...updatedObj, orderStatus: newStatus }));
       }
@@ -179,7 +267,9 @@ const OrdersPage = () => {
                       }`}
                     >
                       <td className="py-3 px-4 font-mono font-bold text-amber-400">
-                        {order.orderId || order._id?.substring(0, 8)}
+                        {order.orderId
+                          ? (order.orderId.startsWith('ORD-') ? order.orderId : `ORD-${order.orderId}`)
+                          : `ORD-${String(order._id).substring(0, 8).toUpperCase()}`}
                       </td>
                       <td className="py-3 px-4">
                         <p className="font-semibold text-slate-100">{order.shippingAddress?.fullName || order.user?.name || 'Customer'}</p>

@@ -32,9 +32,9 @@ const DashboardPage = () => {
   const [refreshing, setRefreshing] = useState(false);
   const { lastNotification } = useSocket();
 
-  const fetchData = async () => {
+  const fetchData = async (showSpinner = true) => {
     try {
-      setRefreshing(true);
+      if (showSpinner) setRefreshing(true);
       const [statsRes, analyticsRes] = await Promise.all([
         api.get('/admin/dashboard/stats'),
         api.get('/admin/dashboard/analytics')
@@ -45,17 +45,23 @@ const DashboardPage = () => {
       console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
-      setRefreshing(false);
+      if (showSpinner) setRefreshing(false);
     }
   };
 
   useEffect(() => {
-    fetchData();
+    fetchData(true);
+
+    const interval = setInterval(() => {
+      fetchData(false);
+    }, 8000);
+
+    return () => clearInterval(interval);
   }, []);
 
   useEffect(() => {
     if (lastNotification) {
-      fetchData();
+      fetchData(false);
     }
   }, [lastNotification]);
 

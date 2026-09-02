@@ -4,7 +4,21 @@ import toast from 'react-hot-toast';
 
 const SocketContext = createContext();
 
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+const getSocketURL = () => {
+  if (import.meta.env.VITE_SOCKET_URL) return import.meta.env.VITE_SOCKET_URL;
+  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '');
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname.includes('render.com')) {
+      return 'https://saha-backend-api.onrender.com';
+    }
+    if (window.location.hostname.includes('vercel.app')) {
+      return 'https://customersite-psi.vercel.app';
+    }
+  }
+  return 'http://localhost:5000';
+};
+
+const SOCKET_URL = getSocketURL();
 
 export const SocketProvider = ({ children }) => {
   const [socket, setSocket] = useState(null);
@@ -14,12 +28,12 @@ export const SocketProvider = ({ children }) => {
   useEffect(() => {
     const newSocket = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
-      reconnectionAttempts: 10,
+      reconnectionAttempts: 20,
       reconnectionDelay: 2000
     });
 
     newSocket.on('connect', () => {
-      console.log('⚡ Connected to Real-time Sync Server');
+      console.log('⚡ Connected to Real-time Sync Server at:', SOCKET_URL);
       setIsConnected(true);
     });
 
@@ -29,8 +43,20 @@ export const SocketProvider = ({ children }) => {
     });
 
     // Real-time listener for new order placement
-    newSocket.on('order:created', (orderData) => {
-      const customerName = orderData?.shippingAddress?.fullName || 'A customer';
+    const handleOrderCreated = (orderData) => {
+      if (!orderData) return;
+
+      // Persist immediately to admin localStorage cache so orders never disappear
+      try {
+        const cached = JSON.parse(localStorage.getItem('saha_admin_orders_cache') || '[]');
+        const key = String(orderData.orderId || orderData._id || '').replace(/^ORD-/, '');
+        const exists = cached.some(o => String(o.orderId || o._id || '').replace(/^ORD-/, '') === key);
+        if (!exists) {
+          localStorage.setItem('saha_admin_orders_cache', JSON.stringify([orderData, ...cached]));
+        }
+      } catch (e) {}
+
+      const customerName = orderData?.shippingAddress?.fullName || orderData?.user?.name || 'A customer';
       const amount = orderData?.totalPrice ? `₹${orderData.totalPrice}` : '';
       
       toast((t) => (
@@ -48,12 +74,23 @@ export const SocketProvider = ({ children }) => {
         </div>
       ), { duration: 6000, position: 'top-right' });
 
-      setLastNotification({ type: 'order', data: orderData, timestamp: Date.now() });
-    });
+      setLastNotification({ type: 'order_created', data: orderData, timestamp: Date.now() });
+    };
+
+    const handleOrderUpdated = (orderData) => {
+      setLastNotification({ type: 'order_updated', data: orderData, timestamp: Date.now() });
+    };
+
+    newSocket.on('order:created', handleOrderCreated);
+    newSocket.on('order:updated', handleOrderUpdated);
+    newSocket.on('order:status_updated', handleOrderUpdated);
 
     setSocket(newSocket);
 
     return () => {
+      newSocket.off('order:created', handleOrderCreated);
+      newSocket.off('order:updated', handleOrderUpdated);
+      newSocket.off('order:status_updated', handleOrderUpdated);
       newSocket.close();
     };
   }, []);

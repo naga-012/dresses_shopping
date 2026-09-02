@@ -14,9 +14,9 @@ exports.getAdminDashboardStats = async (req, res) => {
     let dbUsers = [];
 
     if (mongoose.connection.readyState === 1) {
-      products = await Product.find({}).maxTimeMS(2000).catch(() => []);
-      dbOrders = await Order.find({}).maxTimeMS(2000).catch(() => []);
-      dbUsers = await User.find({ role: 'user' }).select('-password').maxTimeMS(2000).catch(() => []);
+      products = await Product.find({}).lean().maxTimeMS(2000).catch(() => []);
+      dbOrders = await Order.find({}).lean().maxTimeMS(2000).catch(() => []);
+      dbUsers = await User.find({ role: 'user' }).lean().select('-password').maxTimeMS(2000).catch(() => []);
     }
 
     if (!products || products.length === 0) {
@@ -144,7 +144,7 @@ exports.getAdminAnalytics = async (req, res) => {
   try {
     let dbOrders = [];
     if (mongoose.connection.readyState === 1) {
-      dbOrders = await Order.find({ orderStatus: { $ne: 'Cancelled' } }).maxTimeMS(2000).catch(() => []);
+      dbOrders = await Order.find({ orderStatus: { $ne: 'Cancelled' } }).lean().maxTimeMS(2000).catch(() => []);
     }
 
     const allMem = getMergedMemoryOrders ? getMergedMemoryOrders() : (memoryOrders || []);

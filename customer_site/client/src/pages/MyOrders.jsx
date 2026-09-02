@@ -64,9 +64,17 @@ export default function MyOrders() {
 
     const fetchOrders = async () => {
       try {
+        const localOrders = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
+
+        // Auto-sync local orders to backend so admin site has every customer order
+        if (Array.isArray(localOrders) && localOrders.length > 0) {
+          try {
+            await API.post('/orders/sync', localOrders);
+          } catch (e) {}
+        }
+
         const res = await API.get('/orders/myorders');
         const apiOrders = Array.isArray(res.data) ? res.data : [];
-        const localOrders = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
 
         // Sync updated order status from API into local orders
         const updatedLocal = localOrders.map(lo => {

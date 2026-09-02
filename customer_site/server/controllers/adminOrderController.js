@@ -36,37 +36,12 @@ const buildOrderQuery = (searchId) => {
 exports.getAdminOrders = async (req, res) => {
   try {
     const { status, search, startDate, endDate, page = 1, limit = 50 } = req.query;
-    let query = {};
-
-    if (status && status !== 'All') {
-      if (status === 'Confirmed') {
-        query.orderStatus = { $in: ['Confirmed', 'Order Confirmed'] };
-      } else if (status === 'Shipped') {
-        query.orderStatus = { $in: ['Shipped', 'Out for Delivery'] };
-      } else {
-        query.orderStatus = status;
-      }
-    }
-
-    if (search) {
-      query.$or = [
-        { orderId: { $regex: search, $options: 'i' } },
-        { 'shippingAddress.fullName': { $regex: search, $options: 'i' } },
-        { 'shippingAddress.phone': { $regex: search, $options: 'i' } },
-        { 'shippingAddress.email': { $regex: search, $options: 'i' } }
-      ];
-    }
-
-    if (startDate || endDate) {
-      query.createdAt = {};
-      if (startDate) query.createdAt.$gte = new Date(startDate);
-      if (endDate) query.createdAt.$lte = new Date(endDate);
-    }
 
     let dbOrders = [];
     try {
       if (mongoose.connection.readyState === 1) {
-        dbOrders = await Order.find(query)
+        dbOrders = await Order.find({})
+          .lean()
           .populate('user', 'name email phone')
           .sort('-createdAt')
           .maxTimeMS(3000)
@@ -82,25 +57,36 @@ exports.getAdminOrders = async (req, res) => {
 
     [...dbOrders, ...allMem].forEach(o => {
       if (!o) return;
-      const rawKey = String(o.orderId || o._id || '');
-      const key = rawKey.replace(/^ORD-/, '');
-      if (!key) return;
+      const rawId = String(o._id || '');
+      const rawOrderId = String(o.orderId || '');
+      const cleanKey = (rawOrderId || rawId).replace(/^ORD-/, '');
+      if (!cleanKey && !rawId) return;
+
+      const key = cleanKey || rawId;
 
       // Filter by status if specified
       if (status && status !== 'All') {
         const matchConfirmed = status === 'Confirmed' && (o.orderStatus === 'Confirmed' || o.orderStatus === 'Order Confirmed');
         const matchShipped = status === 'Shipped' && (o.orderStatus === 'Shipped' || o.orderStatus === 'Out for Delivery');
-        const matchOther = status !== 'Confirmed' && status !== 'Shipped' && o.orderStatus === status;
+        const matchOther = status !== 'Confirmed' && status !== 'Shipped' && String(o.orderStatus || '').toLowerCase() === String(status).toLowerCase();
         if (!matchConfirmed && !matchShipped && !matchOther) return;
       }
 
       // Filter by search if specified
       if (search) {
         const s = search.toLowerCase();
-        const matchId = String(o.orderId || o._id).toLowerCase().includes(s);
-        const matchName = String(o.shippingAddress?.fullName || '').toLowerCase().includes(s);
-        const matchPhone = String(o.shippingAddress?.phone || '').toLowerCase().includes(s);
-        if (!matchId && !matchName && !matchPhone) return;
+        const matchId = String(o.orderId || o._id || '').toLowerCase().includes(s);
+        const matchName = String(o.shippingAddress?.fullName || o.user?.name || '').toLowerCase().includes(s);
+        const matchPhone = String(o.shippingAddress?.phone || o.user?.phone || '').toLowerCase().includes(s);
+        const matchEmail = String(o.shippingAddress?.email || o.user?.email || '').toLowerCase().includes(s);
+        if (!matchId && !matchName && !matchPhone && !matchEmail) return;
+      }
+
+      // Filter by date range if specified
+      if (startDate || endDate) {
+        const orderTime = new Date(o.createdAt || 0).getTime();
+        if (startDate && orderTime < new Date(startDate).getTime()) return;
+        if (endDate && orderTime > new Date(endDate).getTime()) return;
       }
 
       if (!orderMap.has(key)) {

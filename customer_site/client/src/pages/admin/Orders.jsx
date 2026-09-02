@@ -11,17 +11,22 @@ export default function Orders() {
   const statuses = ['Pending', 'Confirmed', 'Order Confirmed', 'Processing', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled'];
 
   useEffect(() => {
-    fetchOrders();
+    fetchOrders(true);
+    const interval = setInterval(() => {
+      fetchOrders(false);
+    }, 8000);
+    return () => clearInterval(interval);
   }, []);
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (showLoading = true) => {
     try {
+      if (showLoading) setLoading(true);
       const res = await API.get('/orders');
       setOrders(Array.isArray(res.data) ? res.data : []);
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   };
 
