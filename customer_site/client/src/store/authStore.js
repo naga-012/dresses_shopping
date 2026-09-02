@@ -34,7 +34,7 @@ export const useAuthStore = create((set, get) => ({
       const fallbackUser = {
         _id: 'usr_' + Date.now(),
         name: isAdmin ? 'Admin User' : (email ? email.split('@')[0] : 'Saha Member'),
-        email: email || 'user@urbanfit.com',
+        email: email || 'customer@gmail.com',
         role: isAdmin ? 'admin' : 'user'
       };
       const fallbackToken = 'demo_token_' + Date.now();

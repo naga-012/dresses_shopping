@@ -43,6 +43,11 @@ export default function App() {
 
   useEffect(() => {
     fetchProfile();
+    const token = localStorage.getItem('mensverse_token');
+    const savedUser = localStorage.getItem('mensverse_user');
+    if (!token && !savedUser && window.location.pathname !== '/auth') {
+      window.location.href = '/auth';
+    }
   }, []);
 
   return (

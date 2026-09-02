@@ -99,7 +99,7 @@ exports.loginUser = async (req, res) => {
   return res.json({
     _id: mockId,
     name: email ? email.split('@')[0] : 'Saha Member',
-    email: normalizedEmail || 'user@urbanfit.com',
+    email: normalizedEmail || 'customer@gmail.com',
     role: 'user',
     token: generateToken(mockId)
   });
@@ -119,7 +119,7 @@ exports.getUserProfile = async (req, res) => {
   return res.json({
     _id: req.user?._id || 'usr_demo',
     name: 'Saha Member',
-    email: 'user@urbanfit.com',
+    email: 'customer@gmail.com',
     role: 'user'
   });
 };
@@ -155,7 +155,7 @@ exports.updateUserProfile = async (req, res) => {
   return res.json({
     _id: req.user?._id || 'usr_demo',
     name: req.body.name || 'Saha Member',
-    email: req.body.email || 'user@urbanfit.com',
+    email: req.body.email || 'customer@gmail.com',
     phone: req.body.phone || '',
     role: 'user',
     addresses: req.body.addresses || [],
