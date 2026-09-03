@@ -272,8 +272,6 @@ export default function Shop() {
         }}>
           {sortedProducts.map((p, idx) => {
             const pId = p._id || p.id || p.slug || (p.name ? encodeURIComponent(p.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')) : `item-${idx}`);
-            const selId = selectedProduct?._id || selectedProduct?.id || selectedProduct?.slug;
-            const isCurrentlyOnDoll = Boolean(pId && selId && String(pId) === String(selId));
             const productQty = getProductQty(p);
 
             return (
@@ -288,8 +286,7 @@ export default function Shop() {
                   display: 'flex',
                   flexDirection: 'column',
                   cursor: 'pointer',
-                  border: isCurrentlyOnDoll ? '2px solid #d4af37' : '1px solid rgba(255,255,255,0.08)',
-                  boxShadow: isCurrentlyOnDoll ? '0 0 20px rgba(212,175,55,0.3)' : 'none',
+                  border: '1px solid rgba(255,255,255,0.08)',
                   transition: 'all 0.3s'
                 }}
               >
@@ -328,33 +325,6 @@ export default function Shop() {
                       fill={isWishlisted(p) ? '#ef4444' : 'none'}
                       color={isWishlisted(p) ? '#ef4444' : '#fff'}
                     />
-                  </button>
-                  
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleDressClick(p);
-                    }}
-                    style={{
-                      position: 'absolute',
-                      bottom: '12px',
-                      left: '50%',
-                      transform: 'translateX(-50%)',
-                      background: isCurrentlyOnDoll ? '#d4af37' : 'rgba(0, 0, 0, 0.85)',
-                      color: isCurrentlyOnDoll ? '#000' : '#d4af37',
-                      border: '1px solid rgba(212, 175, 55, 0.4)',
-                      padding: '8px 16px',
-                      borderRadius: '20px',
-                      fontSize: '12px',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px',
-                      whiteSpace: 'nowrap'
-                    }}
-                  >
-                    <Shirt size={14} /> {isCurrentlyOnDoll ? 'Fitted on 3D Doll ✓' : 'Fit on 3D Doll'}
                   </button>
                 </div>
 
