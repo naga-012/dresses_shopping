@@ -70,7 +70,16 @@ export default function Navbar() {
         {/* Desktop Links (Hidden on Mobile) */}
         <div className="nav-desktop-links">
           {navLinks.map((link) => {
-            const isActive = location.pathname === link.path || (link.path.includes('filter=new') && location.search.includes('filter=new'));
+            const hasNewFilter = location.search.includes('filter=new');
+            let isActive = false;
+
+            if (link.path === '/shop?filter=new') {
+              isActive = hasNewFilter;
+            } else if (link.path === '/shop') {
+              isActive = location.pathname === '/shop' && !hasNewFilter && !location.search.includes('filter=wishlist');
+            } else {
+              isActive = location.pathname === link.path;
+            }
 
             return (
               <Link
