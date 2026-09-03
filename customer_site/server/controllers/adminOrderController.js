@@ -73,8 +73,18 @@ exports.getAdminOrders = async (req, res) => {
     const allMem = getMergedMemoryOrders ? getMergedMemoryOrders() : (memoryOrders || []);
     const orderMap = new Map();
 
+    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+    const nowTime = Date.now();
+
     [...dbOrders, ...allMem].forEach(o => {
       if (!o) return;
+
+      // Filter out orders older than 30 days from admin site
+      const createdAtTime = new Date(o.createdAt || 0).getTime();
+      if (createdAtTime > 0 && (nowTime - createdAtTime) > THIRTY_DAYS_MS) {
+        return;
+      }
+
       const rawId = String(o._id || '');
       const rawOrderId = String(o.orderId || '');
       const cleanKey = (rawOrderId || rawId).replace(/^ORD-/, '');

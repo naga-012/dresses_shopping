@@ -88,9 +88,19 @@ const OrdersPage = () => {
         localCache = JSON.parse(localStorage.getItem('saha_admin_orders_cache') || '[]');
       } catch (e) {}
 
+      const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+      const nowTime = Date.now();
+
       const orderMap = new Map();
       [...localCache, ...serverOrders].forEach(o => {
         if (!o) return;
+
+        // Filter out orders older than 30 days from admin panel
+        const createdAtTime = new Date(o.createdAt || 0).getTime();
+        if (createdAtTime > 0 && (nowTime - createdAtTime) > THIRTY_DAYS_MS) {
+          return;
+        }
+
         const rawKey = String(o.orderId || o._id || '');
         const key = rawKey.replace(/^ORD-/, '');
         if (!key) return;
@@ -212,7 +222,7 @@ const OrdersPage = () => {
             <ShoppingBag className="text-amber-400" size={22} />
             Customer Order Management
           </h1>
-          <p className="text-xs text-slate-400 mt-1">Live customer orders feed, status updates, and fulfillment workflow</p>
+          <p className="text-xs text-slate-400 mt-1">Live customer orders feed (orders older than 30 days are automatically removed)</p>
         </div>
         <button
           onClick={fetchOrders}
