@@ -344,7 +344,7 @@ const sendOrderNotificationEmail = async (order) => {
   const orderKey = String(order._id || order.orderId || '');
   const recipientEmail = process.env.NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || 'myakalanagarjun09@gmail.com';
   const emailUser = process.env.EMAIL_USER || recipientEmail;
-  const emailPass = process.env.EMAIL_PASS ? process.env.EMAIL_PASS.trim() : '';
+  const emailPass = process.env.EMAIL_PASS ? process.env.EMAIL_PASS.replace(/\s+/g, '') : '';
   const emailHost = process.env.EMAIL_HOST || 'smtp.gmail.com';
   const emailPort = Number(process.env.EMAIL_PORT || 587);
   const orderId = order.orderId || order._id || 'N/A';
