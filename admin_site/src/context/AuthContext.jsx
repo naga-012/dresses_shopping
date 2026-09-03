@@ -6,34 +6,12 @@ const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [admin, setAdmin] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem('saha_admin_token') || '');
+  const [token, setToken] = useState(
+    localStorage.getItem('saha_admin_token') || sessionStorage.getItem('saha_admin_token') || ''
+  );
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const initAuth = async () => {
-      const storedToken = localStorage.getItem('saha_admin_token');
-      const storedUser = localStorage.getItem('saha_admin_user');
-      
-      if (storedToken && storedUser) {
-        try {
-          const parsed = JSON.parse(storedUser);
-          if (parsed.role === 'admin') {
-            setAdmin(parsed);
-            setToken(storedToken);
-          } else {
-            logout();
-          }
-        } catch (e) {
-          logout();
-        }
-      }
-      setLoading(false);
-    };
-
-    initAuth();
-  }, []);
-
-  const login = async (email, password, rememberMe = true) => {
+  const login = async (email, password, rememberMe = true, isAutoLogin = false) => {
     try {
       const res = await api.post('/auth/login', { email, password });
       const { token: userToken, role, name, email: userEmail, _id } = res.data;
@@ -54,14 +32,54 @@ export const AuthProvider = ({ children }) => {
         sessionStorage.setItem('saha_admin_user', JSON.stringify(userData));
       }
 
-      toast.success(`Welcome back, ${name || 'Admin'}!`);
+      if (!isAutoLogin) {
+        toast.success(`Welcome back, ${name || 'Admin'}!`);
+      }
       return { success: true };
     } catch (error) {
       const msg = error.response?.data?.message || error.message || 'Login failed. Please check credentials.';
-      toast.error(msg);
+      if (!isAutoLogin) {
+        toast.error(msg);
+      }
       return { success: false, message: msg };
     }
   };
+
+  useEffect(() => {
+    const initAuth = async () => {
+      const storedToken = localStorage.getItem('saha_admin_token') || sessionStorage.getItem('saha_admin_token');
+      const storedUser = localStorage.getItem('saha_admin_user') || sessionStorage.getItem('saha_admin_user');
+      
+      if (storedToken && storedUser) {
+        try {
+          const parsed = JSON.parse(storedUser);
+          if (parsed.role === 'admin') {
+            setAdmin(parsed);
+            setToken(storedToken);
+            setLoading(false);
+            return;
+          }
+        } catch (e) {
+          // invalid stored user JSON
+        }
+      }
+
+      // Auto-login automatically on site load if no session exists
+      try {
+        const result = await login('myakalanagarjun@gmail.com', 'naga@012', true, true);
+        if (!result.success) {
+          // Fallback auto-login with backup admin credentials
+          await login('admin@sahamenswear.com', 'Admin@123456', true, true);
+        }
+      } catch (err) {
+        console.warn('Auto-login attempt failed:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initAuth();
+  }, []);
 
   const logout = () => {
     setAdmin(null);
@@ -76,7 +94,12 @@ export const AuthProvider = ({ children }) => {
   const updateAdminState = (newAdminData) => {
     setAdmin(prev => {
       const updated = { ...prev, ...newAdminData };
-      localStorage.setItem('saha_admin_user', JSON.stringify(updated));
+      if (localStorage.getItem('saha_admin_user')) {
+        localStorage.setItem('saha_admin_user', JSON.stringify(updated));
+      }
+      if (sessionStorage.getItem('saha_admin_user')) {
+        sessionStorage.setItem('saha_admin_user', JSON.stringify(updated));
+      }
       return updated;
     });
   };
@@ -89,3 +112,4 @@ export const AuthProvider = ({ children }) => {
 };
 
 export const useAuth = () => useContext(AuthContext);
+

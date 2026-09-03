@@ -3,6 +3,24 @@ const Product = require('../models/Product');
 const mongoose = require('mongoose');
 const { memoryOrders, getMergedMemoryOrders } = require('./orderController');
 
+const STATUS_RANK = {
+  'Pending': 1,
+  'Confirmed': 2,
+  'Order Confirmed': 2,
+  'Processing': 3,
+  'Shipped': 4,
+  'Out for Delivery': 5,
+  'Delivered': 6,
+  'Cancelled': 99
+};
+
+const resolveBestStatus = (statusA, statusB) => {
+  if (statusA === 'Cancelled' || statusB === 'Cancelled') return 'Cancelled';
+  const rankA = STATUS_RANK[statusA] || 0;
+  const rankB = STATUS_RANK[statusB] || 0;
+  return rankA >= rankB ? (statusA || statusB || 'Pending') : (statusB || statusA || 'Pending');
+};
+
 // Helper to notify connected WebSocket clients about order updates
 const emitOrderEvent = (req, eventName, data) => {
   const io = req.app.get('io');
@@ -95,9 +113,12 @@ exports.getAdminOrders = async (req, res) => {
         const existing = orderMap.get(key);
         const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
         const newTime = new Date(o.updatedAt || o.createdAt || 0).getTime();
+        const bestStatus = resolveBestStatus(existing.orderStatus, o.orderStatus);
 
-        if (newTime >= existingTime) {
-          orderMap.set(key, { ...existing, ...o, orderStatus: o.orderStatus || existing.orderStatus });
+        if (newTime > existingTime) {
+          orderMap.set(key, { ...existing, ...o, orderStatus: bestStatus });
+        } else {
+          orderMap.set(key, { ...o, ...existing, orderStatus: bestStatus });
         }
       }
     });

@@ -109,6 +109,24 @@ const saveCachedOrders = (orders) => {
   } catch (e) {}
 };
 
+const STATUS_RANK = {
+  'Pending': 1,
+  'Confirmed': 2,
+  'Order Confirmed': 2,
+  'Processing': 3,
+  'Shipped': 4,
+  'Out for Delivery': 5,
+  'Delivered': 6,
+  'Cancelled': 99
+};
+
+const resolveBestStatus = (statusA, statusB) => {
+  if (statusA === 'Cancelled' || statusB === 'Cancelled') return 'Cancelled';
+  const rankA = STATUS_RANK[statusA] || 0;
+  const rankB = STATUS_RANK[statusB] || 0;
+  return rankA >= rankB ? (statusA || statusB || 'Pending') : (statusB || statusA || 'Pending');
+};
+
 const getMergedMemoryOrders = () => {
   const fileOrders = readCachedOrders();
   const map = new Map();
@@ -125,8 +143,11 @@ const getMergedMemoryOrders = () => {
     } else {
       const existing = map.get(key);
       const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
-      if (oTime >= existingTime) {
-        map.set(key, { ...existing, ...o, orderStatus: o.orderStatus || existing.orderStatus });
+      const bestStatus = resolveBestStatus(existing.orderStatus, o.orderStatus);
+      if (oTime > existingTime) {
+        map.set(key, { ...existing, ...o, orderStatus: bestStatus });
+      } else {
+        map.set(key, { ...o, ...existing, orderStatus: bestStatus });
       }
     }
   });
@@ -171,7 +192,12 @@ exports.syncOrderCache = async (req, res) => {
       );
 
       if (existingIdx >= 0) {
-        memoryOrders[existingIdx] = { ...memoryOrders[existingIdx], ...orderData };
+        const existing = memoryOrders[existingIdx];
+        const statusHierarchy = ['Pending', 'Confirmed', 'Order Confirmed', 'Processing', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled'];
+        const existingRank = statusHierarchy.indexOf(existing.orderStatus);
+        const newRank = statusHierarchy.indexOf(orderData.orderStatus);
+        const keptStatus = (existingRank > newRank && newRank !== -1) ? existing.orderStatus : (orderData.orderStatus || existing.orderStatus);
+        memoryOrders[existingIdx] = { ...existing, ...orderData, orderStatus: keptStatus };
       } else {
         memoryOrders.unshift(orderData);
       }
@@ -480,9 +506,12 @@ exports.getMyOrders = async (req, res) => {
         const existing = orderMap.get(key);
         const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
         const newTime = new Date(o.updatedAt || o.createdAt || 0).getTime();
+        const bestStatus = resolveBestStatus(existing.orderStatus, o.orderStatus);
 
-        if (newTime >= existingTime) {
-          orderMap.set(key, { ...existing, ...o, orderStatus: o.orderStatus || existing.orderStatus });
+        if (newTime > existingTime) {
+          orderMap.set(key, { ...existing, ...o, orderStatus: bestStatus });
+        } else {
+          orderMap.set(key, { ...o, ...existing, orderStatus: bestStatus });
         }
       }
     });
@@ -522,9 +551,12 @@ exports.getOrders = async (req, res) => {
         const existing = orderMap.get(key);
         const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
         const newTime = new Date(o.updatedAt || o.createdAt || 0).getTime();
+        const bestStatus = resolveBestStatus(existing.orderStatus, o.orderStatus);
 
-        if (newTime >= existingTime) {
-          orderMap.set(key, { ...existing, ...o, orderStatus: o.orderStatus || existing.orderStatus });
+        if (newTime > existingTime) {
+          orderMap.set(key, { ...existing, ...o, orderStatus: bestStatus });
+        } else {
+          orderMap.set(key, { ...o, ...existing, orderStatus: bestStatus });
         }
       }
     });

@@ -4,8 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { Eye, EyeOff, Lock, Mail, Crown, ShieldCheck, ArrowRight } from 'lucide-react';
 
 const LoginPage = () => {
-  const [email, setEmail] = useState('admin@sahamenswear.com');
-  const [password, setPassword] = useState('Admin@123456');
+  const [email, setEmail] = useState('myakalanagarjun@gmail.com');
+  const [password, setPassword] = useState('naga@012');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);

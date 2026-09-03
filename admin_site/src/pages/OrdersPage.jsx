@@ -22,6 +22,24 @@ import {
   X
 } from 'lucide-react';
 
+const STATUS_RANK = {
+  'Pending': 1,
+  'Confirmed': 2,
+  'Order Confirmed': 2,
+  'Processing': 3,
+  'Shipped': 4,
+  'Out for Delivery': 5,
+  'Delivered': 6,
+  'Cancelled': 99
+};
+
+const resolveBestStatus = (statusA, statusB) => {
+  if (statusA === 'Cancelled' || statusB === 'Cancelled') return 'Cancelled';
+  const rankA = STATUS_RANK[statusA] || 0;
+  const rankB = STATUS_RANK[statusB] || 0;
+  return rankA >= rankB ? (statusA || statusB || 'Pending') : (statusB || statusA || 'Pending');
+};
+
 const OrdersPage = () => {
   const [searchParams] = useSearchParams();
   const highlightId = searchParams.get('id');
@@ -83,8 +101,12 @@ const OrdersPage = () => {
           const existing = orderMap.get(key);
           const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
           const newTime = new Date(o.updatedAt || o.createdAt || 0).getTime();
-          if (newTime >= existingTime) {
-            orderMap.set(key, { ...existing, ...o, orderStatus: o.orderStatus || existing.orderStatus });
+          const bestStatus = resolveBestStatus(existing.orderStatus, o.orderStatus);
+
+          if (newTime > existingTime) {
+            orderMap.set(key, { ...existing, ...o, orderStatus: bestStatus });
+          } else {
+            orderMap.set(key, { ...o, ...existing, orderStatus: bestStatus });
           }
         }
       });

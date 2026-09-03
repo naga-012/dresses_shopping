@@ -12,6 +12,19 @@ export default function OrderTracking() {
 
   const statuses = ['Pending', 'Confirmed', 'Processing', 'Shipped', 'Out for Delivery', 'Delivered'];
 
+  const cleanId = String(id || '').replace(/^ORD-/, '');
+
+  const updateLocalCache = (updatedData) => {
+    try {
+      const localOrders = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
+      const updatedList = localOrders.map(o => {
+        const oKey = String(o.orderId || o._id || '').replace(/^ORD-/, '');
+        return oKey === cleanId ? { ...o, ...updatedData } : o;
+      });
+      localStorage.setItem('urbanfit_customer_orders', JSON.stringify(updatedList));
+    } catch (e) {}
+  };
+
   useEffect(() => {
     const socketUrl = typeof window !== 'undefined' && window.location.hostname.includes('render.com')
       ? 'https://saha-backend-api.onrender.com'
@@ -24,8 +37,18 @@ export default function OrderTracking() {
     });
 
     socket.on('order:updated', (updatedOrder) => {
-      if (String(updatedOrder._id) === String(id) || String(updatedOrder.orderId) === String(id)) {
-        setOrder(prev => ({ ...prev, ...updatedOrder }));
+      if (!updatedOrder) return;
+      const uId = String(updatedOrder._id || '');
+      const uOrderId = String(updatedOrder.orderId || '');
+      const uCleanId = (uOrderId || uId).replace(/^ORD-/, '');
+
+      if (uId === String(id) || uOrderId === String(id) || uCleanId === cleanId) {
+        setOrder(prev => {
+          const next = { ...prev, ...updatedOrder };
+          updateLocalCache(next);
+          return next;
+        });
+
         if (updatedOrder.orderStatus === 'Cancelled') {
           toast.error('Order status updated to Cancelled');
         } else {
@@ -37,26 +60,43 @@ export default function OrderTracking() {
     return () => {
       socket.disconnect();
     };
-  }, [id]);
+  }, [id, cleanId]);
 
   useEffect(() => {
+    let isMounted = true;
     const fetchOrder = async () => {
       try {
         const res = await API.get(`/orders/${id}`);
-        setOrder(res.data);
+        if (res.data && isMounted) {
+          setOrder(res.data);
+          updateLocalCache(res.data);
+        }
       } catch (err) {
-        console.error(err);
-        const localOrders = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
-        const found = localOrders.find(o => String(o._id) === String(id) || String(o.orderId) === String(id));
-        if (found) {
-          setOrder(found);
+        if (isMounted) {
+          const localOrders = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
+          const found = localOrders.find(o => {
+            const oKey = String(o.orderId || o._id || '').replace(/^ORD-/, '');
+            return oKey === cleanId || String(o._id) === String(id) || String(o.orderId) === String(id);
+          });
+          if (found) {
+            setOrder(found);
+          }
         }
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
+
     fetchOrder();
-  }, [id]);
+
+    // Auto-poll every 5 seconds so live order status seamlessly stays in sync
+    const interval = setInterval(fetchOrder, 5000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [id, cleanId]);
 
   if (loading) {
     return <div style={{ minHeight: '80vh', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#d4af37' }}>Loading Order...</div>;

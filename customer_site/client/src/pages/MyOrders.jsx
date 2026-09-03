@@ -6,6 +6,24 @@ import API from '../api';
 import toast from 'react-hot-toast';
 import { io } from 'socket.io-client';
 
+const STATUS_RANK = {
+  'Pending': 1,
+  'Confirmed': 2,
+  'Order Confirmed': 2,
+  'Processing': 3,
+  'Shipped': 4,
+  'Out for Delivery': 5,
+  'Delivered': 6,
+  'Cancelled': 99
+};
+
+const resolveBestStatus = (statusA, statusB) => {
+  if (statusA === 'Cancelled' || statusB === 'Cancelled') return 'Cancelled';
+  const rankA = STATUS_RANK[statusA] || 0;
+  const rankB = STATUS_RANK[statusB] || 0;
+  return rankA >= rankB ? (statusA || statusB || 'Pending') : (statusB || statusA || 'Pending');
+};
+
 export default function MyOrders() {
   const { user } = useAuthStore();
   const navigate = useNavigate();
@@ -29,7 +47,11 @@ export default function MyOrders() {
           (o.orderId && updatedOrder.orderId && String(o.orderId) === String(updatedOrder.orderId)) ||
           String(o._id) === String(updatedOrder.orderId) ||
           String(o.orderId) === String(updatedOrder._id);
-        return isMatch ? { ...o, ...updatedOrder, orderStatus: updatedOrder.orderStatus } : o;
+        if (isMatch) {
+          const bestStatus = resolveBestStatus(o.orderStatus, updatedOrder.orderStatus);
+          return { ...o, ...updatedOrder, orderStatus: bestStatus };
+        }
+        return o;
       }));
 
       try {
@@ -39,7 +61,11 @@ export default function MyOrders() {
             (o.orderId && updatedOrder.orderId && String(o.orderId) === String(updatedOrder.orderId)) ||
             String(o._id) === String(updatedOrder.orderId) ||
             String(o.orderId) === String(updatedOrder._id);
-          return isMatch ? { ...o, ...updatedOrder, orderStatus: updatedOrder.orderStatus } : o;
+          if (isMatch) {
+            const bestStatus = resolveBestStatus(o.orderStatus, updatedOrder.orderStatus);
+            return { ...o, ...updatedOrder, orderStatus: bestStatus };
+          }
+          return o;
         });
         localStorage.setItem('urbanfit_customer_orders', JSON.stringify(updatedLocal));
       } catch (e) {}
@@ -62,8 +88,10 @@ export default function MyOrders() {
       return;
     }
 
-    const fetchOrders = async () => {
+    let isMounted = true;
+    const fetchOrders = async (showLoading = true) => {
       try {
+        if (showLoading) setLoading(true);
         const localOrders = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
 
         // Auto-sync local orders to backend so admin site has every customer order
@@ -76,7 +104,7 @@ export default function MyOrders() {
         const res = await API.get('/orders/myorders');
         const apiOrders = Array.isArray(res.data) ? res.data : [];
 
-        // Sync updated order status from API into local orders
+        // Sync updated order status from API into local orders preserving highest rank
         const updatedLocal = localOrders.map(lo => {
           const match = apiOrders.find(ao => {
             const loKey = String(lo.orderId || lo._id).replace(/^ORD-/, '');
@@ -84,7 +112,8 @@ export default function MyOrders() {
             return loKey === aoKey || String(ao._id) === String(lo._id) || String(ao.orderId) === String(lo.orderId);
           });
           if (match && match.orderStatus) {
-            return { ...lo, ...match, orderStatus: match.orderStatus };
+            const bestStatus = resolveBestStatus(lo.orderStatus, match.orderStatus);
+            return { ...lo, ...match, orderStatus: bestStatus };
           }
           return lo;
         });
@@ -94,7 +123,8 @@ export default function MyOrders() {
             const searchId = lo.orderId || lo._id;
             const single = await API.get(`/orders/${searchId}`);
             if (single.data && single.data.orderStatus) {
-              return { ...lo, ...single.data };
+              const bestStatus = resolveBestStatus(lo.orderStatus, single.data.orderStatus);
+              return { ...lo, ...single.data, orderStatus: bestStatus };
             }
           } catch (e) {}
           return lo;
@@ -115,16 +145,27 @@ export default function MyOrders() {
         );
 
         const merged = [...apiOrders, ...uniqueLocal].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-        setOrders(merged);
+        if (isMounted) setOrders(merged);
       } catch (err) {
         console.error('Error fetching orders:', err);
-        const localOrders = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
-        setOrders(localOrders);
+        if (isMounted) {
+          const localOrders = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
+          setOrders(localOrders);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted && showLoading) setLoading(false);
       }
     };
-    fetchOrders();
+
+    fetchOrders(true);
+
+    // Auto-poll every 6 seconds so user's orders page seamlessly stays in sync
+    const interval = setInterval(() => fetchOrders(false), 6000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [user, navigate]);
 
   const getStatusColor = (status) => {

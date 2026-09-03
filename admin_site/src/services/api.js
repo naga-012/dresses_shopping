@@ -21,7 +21,7 @@ const api = axios.create({
 // Interceptor to inject JWT token into requests
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('saha_admin_token');
+    const token = localStorage.getItem('saha_admin_token') || sessionStorage.getItem('saha_admin_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
