@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { Lock, Mail, User, Phone, ArrowRight, ShieldCheck, Sparkles, Award, Truck, CheckCircle, LogOut, ShoppingBag } from 'lucide-react';
 import { useAuthStore } from '../store/authStore';
-import Auth3DMannequin from '../components/3d/Auth3DMannequin';
 import toast from 'react-hot-toast';
 
 export default function Auth() {
@@ -85,7 +84,7 @@ export default function Auth() {
           marginBottom: '24px',
           boxShadow: '0 0 20px rgba(212,175,55,0.2)'
         }} className="animate-pulse">
-          <Sparkles size={14} /> 3D LUXURY FASHION PORTAL
+          <Sparkles size={14} /> LUXURY FASHION PORTAL
         </div>
 
         {/* ANIMATED SHOP NAME */}
@@ -105,7 +104,7 @@ export default function Auth() {
         </h1>
 
         <p style={{ fontSize: '16px', color: '#a1a1aa', lineHeight: 1.6, marginBottom: '36px', maxWidth: '480px' }}>
-          Welcome to Saha Men's Store. Access your personal 3D virtual fashion showroom, order tracking, and custom tailored fittings.
+          Welcome to Saha Men's Store. Access your personal fashion showroom, order tracking, and custom tailored fittings.
         </p>
 
         {/* Feature Highlights List */}
@@ -125,8 +124,8 @@ export default function Auth() {
               <ShieldCheck size={18} />
             </div>
             <div>
-              <h4 style={{ fontSize: '14px', fontWeight: 800, color: '#fff' }}>Interactive 3D Experience</h4>
-              <p style={{ fontSize: '12px', color: '#71717a' }}>360° outfit fitting & instant color customization</p>
+              <h4 style={{ fontSize: '14px', fontWeight: 800, color: '#fff' }}>Interactive Shopping Experience</h4>
+              <p style={{ fontSize: '12px', color: '#71717a' }}>Outfit fitting & instant color customization</p>
             </div>
           </div>
 
@@ -140,21 +139,6 @@ export default function Auth() {
             </div>
           </div>
         </div>
-      </div>
-
-
-      {/* ---------------- CENTER BACKGROUND: 3D ROTATING MANNEQUIN ---------------- */}
-      <div style={{
-        position: 'absolute',
-        top: 0,
-        left: '25%',
-        right: '35%',
-        bottom: 0,
-        pointerEvents: 'none',
-        opacity: 0.85,
-        zIndex: 5
-      }}>
-        <Auth3DMannequin />
       </div>
 
 
