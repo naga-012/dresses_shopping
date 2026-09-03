@@ -50,3 +50,29 @@ exports.updateStoreSettings = (req, res) => {
     return res.status(500).json({ message: error.message });
   }
 };
+
+exports.getEmailStatus = async (req, res) => {
+  try {
+    const { testEmailConnection } = require('../utils/emailService');
+    const result = await testEmailConnection();
+    return res.json(result);
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+exports.sendTestEmail = async (req, res) => {
+  try {
+    const { sendTestDiagnosticEmail } = require('../utils/emailService');
+    const targetEmail = req.body?.email || process.env.NOTIFICATION_EMAIL || 'myakalanagarjun09@gmail.com';
+    const result = await sendTestDiagnosticEmail(targetEmail);
+    if (result.success) {
+      return res.json(result);
+    } else {
+      return res.status(500).json(result);
+    }
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+

@@ -315,24 +315,63 @@ const generateCustomerOrderHtml = (order) => {
  * Helper to create Nodemailer Transporter tailored for Gmail or custom SMTP
  */
 const createTransporter = (emailUser, emailPass, emailHost, emailPort) => {
-  const isGmail = (emailHost && emailHost.includes('gmail')) || (emailUser && emailUser.includes('@gmail.com'));
-  if (isGmail) {
-    return nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: emailUser,
-        pass: emailPass
-      }
-    });
-  }
-
+  const cleanPass = (emailPass || '').replace(/\s+/g, '');
   return nodemailer.createTransport({
-    host: emailHost || 'smtp.gmail.com',
-    port: Number(emailPort || 587),
-    secure: Number(emailPort) === 465,
-    auth: { user: emailUser, pass: emailPass },
-    tls: { rejectUnauthorized: false }
+    service: 'gmail',
+    auth: {
+      user: emailUser,
+      pass: cleanPass
+    },
+    tls: {
+      rejectUnauthorized: false
+    }
   });
+};
+
+/**
+ * Diagnostic helper to verify SMTP credentials
+ */
+const testEmailConnection = async () => {
+  const user = process.env.EMAIL_USER || 'myakalanagarjun09@gmail.com';
+  const pass = (process.env.EMAIL_PASS || 'lgmlszhtstffduqg').replace(/\s+/g, '');
+  try {
+    const transporter = createTransporter(user, pass);
+    await transporter.verify();
+    return { success: true, user, message: 'SMTP connection verified successfully' };
+  } catch (error) {
+    return { success: false, user, error: error.message, code: error.code };
+  }
+};
+
+/**
+ * Diagnostic helper to send a test email
+ */
+const sendTestDiagnosticEmail = async (targetEmail) => {
+  const user = process.env.EMAIL_USER || 'myakalanagarjun09@gmail.com';
+  const pass = (process.env.EMAIL_PASS || 'lgmlszhtstffduqg').replace(/\s+/g, '');
+  const to = targetEmail || user;
+  try {
+    const transporter = createTransporter(user, pass);
+    const info = await transporter.sendMail({
+      from: `"SAHA Men's Store" <${user}>`,
+      to,
+      subject: `🧪 Test Email from SAHA Men's Store - ${new Date().toLocaleTimeString('en-IN')}`,
+      html: `
+        <div style="font-family: Arial, sans-serif; padding: 25px; background: #0f172a; color: #ffffff; border-radius: 10px; max-width: 500px;">
+          <h2 style="color: #d4af37; margin-top: 0;">SAHA MEN'S STORE - Email Test</h2>
+          <p>This is a diagnostic test email verifying that your Gmail App Password configuration is working properly.</p>
+          <hr style="border: none; border-top: 1px solid #334155; margin: 15px 0;" />
+          <p><strong>Configured Sender:</strong> ${user}</p>
+          <p><strong>Recipient:</strong> ${to}</p>
+          <p><strong>Sent At:</strong> ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</p>
+          <p style="color: #10b981; font-weight: bold; margin-top: 15px;">✅ Status: All systems operational!</p>
+        </div>
+      `
+    });
+    return { success: true, messageId: info.messageId, to };
+  } catch (error) {
+    return { success: false, error: error.message, code: error.code };
+  }
 };
 
 /**
@@ -343,13 +382,17 @@ const sendOrderNotificationEmail = async (order) => {
 
   const orderKey = String(order._id || order.orderId || '');
   const recipientEmail = process.env.NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || 'myakalanagarjun09@gmail.com';
-  const emailUser = process.env.EMAIL_USER || recipientEmail;
-  const emailPass = process.env.EMAIL_PASS ? process.env.EMAIL_PASS.replace(/\s+/g, '') : '';
+  const emailUser = process.env.EMAIL_USER || 'myakalanagarjun09@gmail.com';
+  const defaultPass = 'lgmlszhtstffduqg';
+  const rawPass = process.env.EMAIL_PASS || defaultPass;
+  const emailPass = rawPass ? rawPass.replace(/\s+/g, '') : defaultPass;
   const emailHost = process.env.EMAIL_HOST || 'smtp.gmail.com';
   const emailPort = Number(process.env.EMAIL_PORT || 587);
   const orderId = order.orderId || order._id || 'N/A';
 
   const isConfigured = emailPass && emailPass !== 'your_gmail_app_password' && emailPass !== 'nagarjun yadav';
+
+  console.log(`[Email Service] 📨 Initiating emails for Order ${orderId}...`);
 
   // 1. Send Admin Alert Email
   if (orderKey && !sentOrderEmails.has(orderKey)) {
@@ -360,11 +403,7 @@ const sendOrderNotificationEmail = async (order) => {
       console.log(`New Order ID: ${orderId}`);
       console.log(`Customer: ${order.shippingAddress?.fullName || 'Customer'}`);
       console.log(`Total: ₹${order.totalPrice || 0} (${order.paymentMethod || 'COD'})`);
-      console.log(`\n⚠️  Gmail requires a 16-character Google App Password (not your normal password).`);
-      console.log(`Please set EMAIL_PASS in server/.env with your 16-character App Password:`);
-      console.log(`1. Go to https://myaccount.google.com/apppasswords`);
-      console.log(`2. Generate an App Password for 'Mail'`);
-      console.log(`3. Paste the 16-character code into EMAIL_PASS in customer_site/server/.env`);
+      console.log(`\n⚠️  Gmail requires a 16-character Google App Password.`);
       console.log('======================================================\n');
     } else {
       try {
@@ -383,7 +422,6 @@ const sendOrderNotificationEmail = async (order) => {
         console.error(`[Email Service Error] ❌ Failed to send admin alert for Order ${orderId}:`, error.message);
         if (error.code === 'EAUTH' || error.message.includes('Invalid login') || error.message.includes('534-5.7.9')) {
           console.error(`--> GMAIL AUTH ERROR: Google rejected the login attempt.`);
-          console.error(`--> Reason: Gmail requires a 16-character App Password from https://myaccount.google.com/apppasswords`);
         }
       }
     }
@@ -411,13 +449,16 @@ const sendOrderNotificationEmail = async (order) => {
           console.error(`[Email Service Error] ❌ Failed to send customer confirmation to ${customerEmail}:`, error.message);
         }
       } else {
-        console.log(`[Email Service] Customer confirmation email queued for ${customerEmail} (Awaiting valid EMAIL_PASS in server/.env)`);
+        console.log(`[Email Service] Customer confirmation email queued for ${customerEmail} (Awaiting valid EMAIL_PASS)`);
       }
     }
   }
 };
 
 module.exports = {
-  sendOrderNotificationEmail
+  sendOrderNotificationEmail,
+  testEmailConnection,
+  sendTestDiagnosticEmail
 };
+
 

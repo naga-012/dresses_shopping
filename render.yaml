@@ -50,7 +50,7 @@ services:
       - key: EMAIL_USER
         value: myakalanagarjun09@gmail.com
       - key: EMAIL_PASS
-        sync: false
+        value: lgmlszhtstffduqg
       - key: MONGO_URI
         sync: false
       - key: JWT_SECRET

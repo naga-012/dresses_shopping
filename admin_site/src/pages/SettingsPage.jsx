@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { Settings, Store, Shield, Save } from 'lucide-react';
+import { Settings, Store, Shield, Save, Mail, Send, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 
 const SettingsPage = () => {
   const { admin, updateAdminState } = useAuth();
@@ -29,6 +29,30 @@ const SettingsPage = () => {
     newPassword: '',
     confirmPassword: ''
   });
+
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [emailStatus, setEmailStatus] = useState(null);
+
+  const handleTestEmail = async () => {
+    setTestingEmail(true);
+    setEmailStatus(null);
+    try {
+      const res = await api.post('/settings/test-email', { email: profileData.email || 'myakalanagarjun09@gmail.com' });
+      if (res.data && res.data.success) {
+        toast.success(`Test email sent to ${res.data.to}! Please check inbox / spam.`);
+        setEmailStatus({ success: true, message: `Live test email sent successfully to ${res.data.to}. If not in Primary, please check your Gmail Spam or Updates folder!` });
+      } else {
+        toast.error(`Email test failed: ${res.data?.error || 'Unknown error'}`);
+        setEmailStatus({ success: false, message: res.data?.error || 'Failed to send' });
+      }
+    } catch (err) {
+      const errMsg = err.response?.data?.error || err.message || 'Error sending test email';
+      toast.error(errMsg);
+      setEmailStatus({ success: false, message: errMsg });
+    } finally {
+      setTestingEmail(false);
+    }
+  };
 
   useEffect(() => {
     const fetchSettings = async () => {
@@ -225,7 +249,45 @@ const SettingsPage = () => {
           </button>
         </div>
       </form>
+
+      {/* Email & Order Notifications Service */}
+      <div className="glass-card p-6 rounded-2xl border border-slate-800 space-y-4 text-xs">
+        <h2 className="text-sm font-bold text-amber-400 uppercase tracking-wider flex items-center gap-2">
+          <Mail size={16} /> Order Notifications & Gmail SMTP
+        </h2>
+        <p className="text-slate-400">
+          Automated emails are sent for new orders (admin alerts & customer order confirmations).
+        </p>
+
+        <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-xl space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-slate-300 font-semibold">Configured Sender & Admin Recipient:</div>
+              <div className="text-amber-400 font-mono text-sm">myakalanagarjun09@gmail.com</div>
+              <div className="text-slate-500 text-[11px] mt-1">Service: Gmail SMTP (App Password authenticated)</div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleTestEmail}
+              disabled={testingEmail}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold shadow-lg shadow-amber-500/20 transition-all disabled:opacity-50 cursor-pointer"
+            >
+              {testingEmail ? <Loader2 size={15} className="animate-spin" /> : <Send size={15} />}
+              {testingEmail ? 'Sending Test...' : 'Send Live Test Email'}
+            </button>
+          </div>
+
+          {emailStatus && (
+            <div className={`mt-2 p-3 rounded-lg border text-xs flex items-center gap-2 ${emailStatus.success ? 'bg-emerald-950/40 border-emerald-800/60 text-emerald-300' : 'bg-rose-950/40 border-rose-800/60 text-rose-300'}`}>
+              {emailStatus.success ? <CheckCircle2 size={16} className="shrink-0 text-emerald-400" /> : <AlertCircle size={16} className="shrink-0 text-rose-400" />}
+              <span>{emailStatus.message}</span>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
+
   );
 };
 

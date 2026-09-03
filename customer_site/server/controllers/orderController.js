@@ -288,11 +288,16 @@ exports.addOrderItems = async (req, res) => {
 
     const orderId = 'ORD-' + Math.floor(100000 + Math.random() * 900000);
 
+    const safeShippingAddress = {
+      ...(shippingAddress || {}),
+      email: shippingAddress?.email || req.user?.email || ''
+    };
+
     const order = new Order({
       orderId,
       user: userId,
       orderItems: sanitizedOrderItems,
-      shippingAddress,
+      shippingAddress: safeShippingAddress,
       paymentMethod,
       itemsPrice,
       taxPrice: taxPrice || 0,
@@ -332,6 +337,7 @@ exports.addOrderItems = async (req, res) => {
       }
 
       const plainOrder = createdOrder.toObject ? createdOrder.toObject() : createdOrder;
+      plainOrder.userEmail = safeShippingAddress.email || req.user?.email;
       memoryOrders.unshift(plainOrder);
       getMergedMemoryOrders();
 
@@ -340,8 +346,15 @@ exports.addOrderItems = async (req, res) => {
         io.emit('order:created', plainOrder);
       }
 
-      // Trigger email notification asynchronously
-      sendOrderNotificationEmail(plainOrder).catch(err => console.error('Email notification error:', err));
+      // Trigger email notification safely
+      try {
+        await Promise.race([
+          sendOrderNotificationEmail(plainOrder),
+          new Promise(resolve => setTimeout(resolve, 3500))
+        ]);
+      } catch (e) {
+        console.error('Order notification warning:', e.message);
+      }
 
       return res.status(201).json(plainOrder);
     }
@@ -351,8 +364,9 @@ exports.addOrderItems = async (req, res) => {
       _id: new mongoose.Types.ObjectId().toString(),
       orderId,
       user: userId,
+      userEmail: safeShippingAddress.email || req.user?.email,
       orderItems: sanitizedOrderItems,
-      shippingAddress,
+      shippingAddress: safeShippingAddress,
       paymentMethod,
       itemsPrice,
       taxPrice: taxPrice || 0,
@@ -371,8 +385,15 @@ exports.addOrderItems = async (req, res) => {
       io.emit('order:created', mockOrder);
     }
 
-    // Trigger email notification asynchronously
-    sendOrderNotificationEmail(mockOrder).catch(err => console.error('Email notification error:', err));
+    // Trigger email notification safely
+    try {
+      await Promise.race([
+        sendOrderNotificationEmail(mockOrder),
+        new Promise(resolve => setTimeout(resolve, 3500))
+      ]);
+    } catch (e) {
+      console.error('Order notification warning:', e.message);
+    }
 
     return res.status(201).json(mockOrder);
   } catch (error) {
