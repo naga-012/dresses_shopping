@@ -56,26 +56,14 @@ export const AuthProvider = ({ children }) => {
           if (parsed.role === 'admin') {
             setAdmin(parsed);
             setToken(storedToken);
-            setLoading(false);
-            return;
+          } else {
+            logout();
           }
         } catch (e) {
-          // invalid stored user JSON
+          logout();
         }
       }
-
-      // Auto-login automatically on site load if no session exists
-      try {
-        const result = await login('myakalanagarjun@gmail.com', 'naga@012', true, true);
-        if (!result.success) {
-          // Fallback auto-login with backup admin credentials
-          await login('admin@sahamenswear.com', 'Admin@123456', true, true);
-        }
-      } catch (err) {
-        console.warn('Auto-login attempt failed:', err);
-      } finally {
-        setLoading(false);
-      }
+      setLoading(false);
     };
 
     initAuth();
