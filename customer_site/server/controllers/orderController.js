@@ -251,14 +251,6 @@ exports.syncOrderCache = async (req, res) => {
       }
 
       syncedOrders.push(orderData);
-
-      // Trigger socket event for admin notification
-      if (io) {
-        io.emit('order:created', orderData);
-      }
-
-      // Trigger email notification asynchronously
-      sendOrderNotificationEmail(orderData).catch(err => console.error('Email notification error:', err));
     }
 
     getMergedMemoryOrders();

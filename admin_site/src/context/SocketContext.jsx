@@ -42,37 +42,51 @@ export const SocketProvider = ({ children }) => {
       setIsConnected(false);
     });
 
+    const notifiedOrdersMap = new Set();
+
     // Real-time listener for new order placement
     const handleOrderCreated = (orderData) => {
       if (!orderData) return;
 
-      // Persist immediately to admin localStorage cache so orders never disappear
+      const orderKey = String(orderData.orderId || orderData._id || '').replace(/^ORD-/, '');
+      if (!orderKey) return;
+
+      // Prevent duplicate toast notifications for the same order
+      if (notifiedOrdersMap.has(orderKey)) return;
+
+      // Only display toast popup for orders created within the last 2 minutes
+      const orderCreatedAt = new Date(orderData.createdAt || Date.now()).getTime();
+      const isRecent = !isNaN(orderCreatedAt) && (Date.now() - orderCreatedAt) < 120000;
+
+      // Persist immediately to admin localStorage cache
       try {
         const cached = JSON.parse(localStorage.getItem('saha_admin_orders_cache') || '[]');
-        const key = String(orderData.orderId || orderData._id || '').replace(/^ORD-/, '');
-        const exists = cached.some(o => String(o.orderId || o._id || '').replace(/^ORD-/, '') === key);
+        const exists = cached.some(o => String(o.orderId || o._id || '').replace(/^ORD-/, '') === orderKey);
         if (!exists) {
           localStorage.setItem('saha_admin_orders_cache', JSON.stringify([orderData, ...cached]));
         }
       } catch (e) {}
 
-      const customerName = orderData?.shippingAddress?.fullName || orderData?.user?.name || 'A customer';
-      const amount = orderData?.totalPrice ? `₹${orderData.totalPrice}` : '';
-      
-      toast((t) => (
-        <div className="flex items-center gap-3 cursor-pointer" onClick={() => {
-          toast.dismiss(t.id);
-          window.location.href = `/orders?id=${orderData._id}`;
-        }}>
-          <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-lg">
-            🛒
+      if (isRecent) {
+        notifiedOrdersMap.add(orderKey);
+        const customerName = orderData?.shippingAddress?.fullName || orderData?.user?.name || 'A customer';
+        const amount = orderData?.totalPrice ? `₹${orderData.totalPrice}` : '';
+        
+        toast((t) => (
+          <div className="flex items-center gap-3 cursor-pointer" onClick={() => {
+            toast.dismiss(t.id);
+            window.location.href = `/orders?id=${orderData._id}`;
+          }}>
+            <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold text-lg">
+              🛒
+            </div>
+            <div>
+              <p className="font-semibold text-sm text-slate-100">New Order Received!</p>
+              <p className="text-xs text-slate-300">{customerName} placed order {amount}</p>
+            </div>
           </div>
-          <div>
-            <p className="font-semibold text-sm text-slate-100">New Order Received!</p>
-            <p className="text-xs text-slate-300">{customerName} placed order {amount}</p>
-          </div>
-        </div>
-      ), { duration: 6000, position: 'top-right' });
+        ), { duration: 6000, position: 'top-right' });
+      }
 
       setLastNotification({ type: 'order_created', data: orderData, timestamp: Date.now() });
     };
