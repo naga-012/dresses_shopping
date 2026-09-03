@@ -3,17 +3,31 @@ import { useSocket } from '../context/SocketContext';
 import { useAuth } from '../context/AuthContext';
 import { Menu, ExternalLink, Wifi, WifiOff, Bell, User } from 'lucide-react';
 
+const getCustomerSiteURL = () => {
+  if (typeof window !== 'undefined') {
+    if (window.location.hostname.includes('render.com')) {
+      return 'https://saha-customer-site.onrender.com';
+    }
+    if (window.location.hostname.includes('vercel.app')) {
+      return 'https://customersite-psi.vercel.app';
+    }
+  }
+  return 'http://localhost:5173';
+};
+
 const Header = ({ onMenuClick }) => {
   const { isConnected } = useSocket();
   const { admin } = useAuth();
+  const customerSiteURL = getCustomerSiteURL();
 
   return (
-    <header className="h-16 bg-slate-900/90 backdrop-blur-md border-b border-slate-800/80 sticky top-0 z-30 px-4 lg:px-8 flex items-center justify-between">
+    <header className="h-16 bg-slate-900/90 backdrop-blur-md border-b border-slate-800/80 sticky top-0 z-30 px-3 sm:px-6 flex items-center justify-between">
       {/* Mobile Toggle & Search / Breadcrumb */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 sm:gap-4">
         <button
           onClick={onMenuClick}
-          className="lg:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
+          className="lg:hidden p-2 rounded-xl text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-700/50"
+          aria-label="Open Mobile Menu"
         >
           <Menu size={22} />
         </button>
@@ -26,10 +40,10 @@ const Header = ({ onMenuClick }) => {
       </div>
 
       {/* Header Actions */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3">
         {/* Real-time Socket Indicator */}
         <div
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium border ${
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-[11px] sm:text-xs font-medium border ${
             isConnected
               ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
               : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
@@ -38,17 +52,17 @@ const Header = ({ onMenuClick }) => {
         >
           <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
           {isConnected ? <Wifi size={13} /> : <WifiOff size={13} />}
-          <span className="hidden md:inline">{isConnected ? 'Live Sync Active' : 'Polling Sync'}</span>
+          <span className="hidden sm:inline">{isConnected ? 'Live Sync' : 'Polling'}</span>
         </div>
 
         {/* View Customer Website Link */}
         <a
-          href="http://localhost:5173"
+          href={customerSiteURL}
           target="_blank"
           rel="noopener noreferrer"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition-all"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 transition-all"
         >
-          <span>View Customer Site</span>
+          <span className="hidden xs:inline">Customer Site</span>
           <ExternalLink size={13} />
         </a>
 
