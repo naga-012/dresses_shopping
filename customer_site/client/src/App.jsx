@@ -14,7 +14,6 @@ import MobileBottomNav from './components/layout/MobileBottomNav';
 // Pages
 import Home from './pages/Home';
 import Shop from './pages/Shop';
-import ThreeDExperiencePage from './pages/ThreeDExperiencePage';
 import ProductDetail3D from './pages/ProductDetail3D';
 import Checkout from './pages/Checkout';
 import OrderTracking from './pages/OrderTracking';
@@ -57,7 +56,6 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/shop" element={<Shop />} />
             <Route path="/product/:id" element={<ProductDetail3D />} />
-            <Route path="/3d-experience" element={<ThreeDExperiencePage />} />
             <Route path="/auth" element={<Auth />} />
 
             {/* User Protected Routes */}

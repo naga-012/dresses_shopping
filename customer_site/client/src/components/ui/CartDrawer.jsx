@@ -107,7 +107,7 @@ export default function CartDrawer() {
                   cursor: 'pointer'
                 }}
               >
-                Explore 3D Collection
+                Explore Collection
               </button>
             </div>
           ) : (

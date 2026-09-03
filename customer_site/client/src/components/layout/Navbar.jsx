@@ -18,7 +18,6 @@ export default function Navbar() {
   const navLinks = [
     { name: 'HOME', path: '/' },
     { name: 'SHOP', path: '/shop' },
-    { name: '3D EXPERIENCE', path: '/3d-experience' },
     { name: 'NEW ARRIVALS', path: '/shop?filter=new' },
     { name: 'MY ORDERS', path: '/my-orders' }
   ];
@@ -63,7 +62,7 @@ export default function Navbar() {
               letterSpacing: '0.18em',
               marginTop: '2px'
             }}>
-              3D FASHION STORE
+              PREMIUM FASHION STORE
             </div>
           </div>
         </Link>

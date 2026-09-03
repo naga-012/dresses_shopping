@@ -17,7 +17,7 @@ export default function MobileBottomNav() {
   const tabs = [
     { name: 'Home', path: '/', icon: Home },
     { name: 'Shop', path: '/shop', icon: ShoppingBag },
-    { name: '3D Fit', path: '/3d-experience', icon: Sparkles, highlight: true },
+    { name: 'New', path: '/shop?filter=new', icon: Sparkles },
     { name: 'Wishlist', path: '/shop?filter=wishlist', icon: Heart, badge: wishlistCount },
     { name: 'Profile', path: user ? '/profile' : '/auth', icon: User }
   ];
