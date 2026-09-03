@@ -167,12 +167,25 @@ export default function Shop() {
       }
       return res;
     }
+
+    if (selectedCategory === '🔥 New Arrivals' || searchParams.get('filter') === 'new') {
+      let newArrivalsList = products.filter(p => p.isNewArrival !== false);
+      if (newArrivalsList.length === 0) newArrivalsList = products;
+      if (searchQuery) {
+        newArrivalsList = newArrivalsList.filter(p => p.name?.toLowerCase().includes(searchQuery.toLowerCase()));
+      }
+      return newArrivalsList;
+    }
+
     return products;
-  }, [selectedCategory, wishlist, products, searchQuery, isWishlisted]);
+  }, [selectedCategory, wishlist, products, searchQuery, isWishlisted, searchParams]);
 
   const sortedProducts = [...displayedProducts].sort((a, b) => {
     if (selectedCategory === '🔥 New Arrivals' || searchParams.get('filter') === 'new') {
-      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      const tA = new Date(a.createdAt || a.updatedAt || 0).getTime();
+      const tB = new Date(b.createdAt || b.updatedAt || 0).getTime();
+      if (tA && tB && tA !== tB) return tB - tA;
+      return (String(b._id || b.id || '')).localeCompare(String(a._id || a.id || ''));
     }
     const priceA = a.discountPrice || a.price || 0;
     const priceB = b.discountPrice || b.price || 0;
