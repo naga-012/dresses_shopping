@@ -120,7 +120,7 @@ export default function Shop() {
     if (!product) return;
     setSelectedProduct(product);
     if (product.category) setActiveCategory(product.category);
-    toast.success(`Opening 3D Fashion Viewer for ${product.name}...`);
+    toast.success(`Opening ${product.name}...`);
     const pId = product._id || product.id || product.slug || (product.name ? encodeURIComponent(product.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')) : 'item');
     navigate(`/product/${pId}`);
   };

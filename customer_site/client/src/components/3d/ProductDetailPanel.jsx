@@ -57,7 +57,7 @@ export default function ProductDetailPanel() {
           alignItems: 'center',
           gap: '4px'
         }}>
-          <Sparkles size={12} /> 3D Live Fit
+          <Sparkles size={12} /> Premium Fit
         </span>
       </div>
 
