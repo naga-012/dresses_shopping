@@ -143,11 +143,13 @@ const getMergedMemoryOrders = () => {
     } else {
       const existing = map.get(key);
       const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
-      const bestStatus = resolveBestStatus(existing.orderStatus, o.orderStatus);
       if (oTime > existingTime) {
-        map.set(key, { ...existing, ...o, orderStatus: bestStatus });
+        map.set(key, { ...existing, ...o, orderStatus: o.orderStatus || existing.orderStatus });
+      } else if (existingTime > oTime) {
+        map.set(key, { ...o, ...existing, orderStatus: existing.orderStatus || o.orderStatus });
       } else {
-        map.set(key, { ...o, ...existing, orderStatus: bestStatus });
+        const bestStatus = resolveBestStatus(existing.orderStatus, o.orderStatus);
+        map.set(key, { ...existing, ...o, orderStatus: bestStatus });
       }
     }
   });
@@ -165,6 +167,150 @@ const getMergedMemoryOrders = () => {
 
 exports.getMergedMemoryOrders = getMergedMemoryOrders;
 exports.saveCachedOrders = saveCachedOrders;
+exports.readCachedOrders = readCachedOrders;
+
+// Helper to update an order across MongoDB, memory store, and disk cache
+const updateOrderStatusInStore = async (searchId, newStatus, req) => {
+  const cleanKey = String(searchId || '').trim().replace(/^ORD-/, '');
+  const now = new Date();
+
+  let updatedOrderData = null;
+  let previousStatus = null;
+
+  // 1. Try updating in MongoDB if available
+  if (mongoose.connection.readyState === 1) {
+    try {
+      const order = await Order.findOne(buildOrderQuery(searchId)).catch(() => null);
+      if (order) {
+        previousStatus = order.orderStatus;
+        order.orderStatus = newStatus;
+        order.updatedAt = now;
+        order.statusTimeline = order.statusTimeline || [];
+        order.statusTimeline.push({ status: newStatus, updatedAt: now });
+
+        if (newStatus === 'Delivered') {
+          order.isDelivered = true;
+          order.deliveredAt = now;
+          if (order.paymentMethod === 'COD') {
+            order.isPaid = true;
+            order.paidAt = now;
+          }
+        } else if (newStatus === 'Cancelled' && previousStatus !== 'Cancelled') {
+          for (const item of (order.orderItems || [])) {
+            if (item.product && mongoose.Types.ObjectId.isValid(item.product)) {
+              const product = await Product.findById(item.product).catch(() => null);
+              if (product) {
+                product.stock += (item.qty || 1);
+                if (product.soldCount >= (item.qty || 1)) {
+                  product.soldCount -= (item.qty || 1);
+                }
+                if (product.stock > 0) product.isAvailable = true;
+                await product.save().catch(() => {});
+              }
+            }
+          }
+        }
+
+        const saved = await order.save();
+        updatedOrderData = saved.toObject ? saved.toObject() : saved;
+      }
+    } catch (e) {
+      console.warn('MongoDB order update warning:', e.message);
+    }
+  }
+
+  // 2. Read file cache and update in file cache
+  const cachedOrders = readCachedOrders();
+  let foundInCache = false;
+  const updatedCacheOrders = cachedOrders.map(o => {
+    const oId = String(o._id || '');
+    const oOrdId = String(o.orderId || '');
+    const oClean = oOrdId.replace(/^ORD-/, '');
+    const isMatch = oId === String(searchId) || oOrdId === String(searchId) || (oClean && oClean === cleanKey);
+    if (isMatch) {
+      foundInCache = true;
+      if (!previousStatus) previousStatus = o.orderStatus;
+      const timeline = Array.isArray(o.statusTimeline) ? [...o.statusTimeline] : [];
+      timeline.push({ status: newStatus, updatedAt: now });
+      const updated = {
+        ...o,
+        orderStatus: newStatus,
+        updatedAt: now,
+        statusTimeline: timeline
+      };
+      if (newStatus === 'Delivered') {
+        updated.isDelivered = true;
+        updated.deliveredAt = now;
+        if (updated.paymentMethod === 'COD') {
+          updated.isPaid = true;
+          updated.paidAt = now;
+        }
+      }
+      if (!updatedOrderData) updatedOrderData = updated;
+      return updated;
+    }
+    return o;
+  });
+
+  // 3. Update in memoryOrders array
+  let foundInMem = false;
+  for (let i = 0; i < memoryOrders.length; i++) {
+    const o = memoryOrders[i];
+    const oId = String(o._id || '');
+    const oOrdId = String(o.orderId || '');
+    const oClean = oOrdId.replace(/^ORD-/, '');
+    if (oId === String(searchId) || oOrdId === String(searchId) || (oClean && oClean === cleanKey)) {
+      foundInMem = true;
+      if (!previousStatus) previousStatus = o.orderStatus;
+      const timeline = Array.isArray(o.statusTimeline) ? [...o.statusTimeline] : [];
+      timeline.push({ status: newStatus, updatedAt: now });
+      memoryOrders[i] = {
+        ...o,
+        orderStatus: newStatus,
+        updatedAt: now,
+        statusTimeline: timeline
+      };
+      if (newStatus === 'Delivered') {
+        memoryOrders[i].isDelivered = true;
+        memoryOrders[i].deliveredAt = now;
+        if (memoryOrders[i].paymentMethod === 'COD') {
+          memoryOrders[i].isPaid = true;
+          memoryOrders[i].paidAt = now;
+        }
+      }
+      if (!updatedOrderData) updatedOrderData = memoryOrders[i];
+      break;
+    }
+  }
+
+  // If order was in DB or elsewhere, make sure it is in both memory and cache
+  if (updatedOrderData) {
+    if (!foundInMem) {
+      memoryOrders.unshift(updatedOrderData);
+    }
+    if (!foundInCache) {
+      updatedCacheOrders.unshift(updatedOrderData);
+    }
+    saveCachedOrders(updatedCacheOrders);
+    global.memoryOrders = [...memoryOrders];
+  }
+
+  // 4. Emit Socket.IO event and trigger email notification
+  if (updatedOrderData) {
+    const io = req?.app?.get ? req.app.get('io') : null;
+    if (io) {
+      io.emit('order:updated', updatedOrderData);
+    }
+
+    sendOrderStatusUpdateEmail(updatedOrderData, previousStatus || 'Pending', newStatus).catch(err =>
+      console.error('Status update email notification error:', err.message)
+    );
+  }
+
+  return updatedOrderData;
+};
+
+exports.updateOrderStatusInStore = updateOrderStatusInStore;
 
 // @desc Sync order from client or serverless lambda
 // @route POST /api/orders/sync
@@ -180,6 +326,8 @@ exports.syncOrderCache = async (req, res) => {
     const io = req.app.get('io');
     const syncedOrders = [];
 
+    const cachedOrders = readCachedOrders();
+
     for (const orderData of ordersToSync) {
       if (!orderData || (!orderData._id && !orderData.orderId)) continue;
 
@@ -192,13 +340,26 @@ exports.syncOrderCache = async (req, res) => {
         (o.orderId && String(o.orderId).replace(/^ORD-/, '') === cleanKey)
       );
 
-      if (existingIdx >= 0) {
-        const existing = memoryOrders[existingIdx];
+      const existingInCache = cachedOrders.find(o =>
+        String(o._id) === String(orderData._id) || 
+        String(o.orderId) === String(orderData.orderId) ||
+        (o.orderId && String(o.orderId).replace(/^ORD-/, '') === cleanKey)
+      );
+
+      const existing = existingIdx >= 0 ? memoryOrders[existingIdx] : existingInCache;
+
+      if (existing) {
         const statusHierarchy = ['Pending', 'Confirmed', 'Order Confirmed', 'Processing', 'Shipped', 'Out for Delivery', 'Delivered', 'Cancelled'];
         const existingRank = statusHierarchy.indexOf(existing.orderStatus);
         const newRank = statusHierarchy.indexOf(orderData.orderStatus);
-        const keptStatus = (existingRank > newRank && newRank !== -1) ? existing.orderStatus : (orderData.orderStatus || existing.orderStatus);
-        memoryOrders[existingIdx] = { ...existing, ...orderData, orderStatus: keptStatus };
+        // Do not allow stale client sync to downgrade status from Processing/Shipped/Delivered
+        const keptStatus = (existingRank >= newRank && existingRank !== -1) ? existing.orderStatus : (orderData.orderStatus || existing.orderStatus);
+        const updated = { ...existing, ...orderData, orderStatus: keptStatus };
+        if (existingIdx >= 0) {
+          memoryOrders[existingIdx] = updated;
+        } else {
+          memoryOrders.unshift(updated);
+        }
       } else {
         memoryOrders.unshift(orderData);
       }
@@ -520,12 +681,14 @@ exports.getMyOrders = async (req, res) => {
         const existing = orderMap.get(key);
         const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
         const newTime = new Date(o.updatedAt || o.createdAt || 0).getTime();
-        const bestStatus = resolveBestStatus(existing.orderStatus, o.orderStatus);
 
         if (newTime > existingTime) {
-          orderMap.set(key, { ...existing, ...o, orderStatus: bestStatus });
+          orderMap.set(key, { ...existing, ...o, orderStatus: o.orderStatus || existing.orderStatus });
+        } else if (existingTime > newTime) {
+          orderMap.set(key, { ...o, ...existing, orderStatus: existing.orderStatus || o.orderStatus });
         } else {
-          orderMap.set(key, { ...o, ...existing, orderStatus: bestStatus });
+          const bestStatus = resolveBestStatus(existing.orderStatus, o.orderStatus);
+          orderMap.set(key, { ...existing, ...o, orderStatus: bestStatus });
         }
       }
     });
@@ -565,12 +728,14 @@ exports.getOrders = async (req, res) => {
         const existing = orderMap.get(key);
         const existingTime = new Date(existing.updatedAt || existing.createdAt || 0).getTime();
         const newTime = new Date(o.updatedAt || o.createdAt || 0).getTime();
-        const bestStatus = resolveBestStatus(existing.orderStatus, o.orderStatus);
 
         if (newTime > existingTime) {
-          orderMap.set(key, { ...existing, ...o, orderStatus: bestStatus });
+          orderMap.set(key, { ...existing, ...o, orderStatus: o.orderStatus || existing.orderStatus });
+        } else if (existingTime > newTime) {
+          orderMap.set(key, { ...o, ...existing, orderStatus: existing.orderStatus || o.orderStatus });
         } else {
-          orderMap.set(key, { ...o, ...existing, orderStatus: bestStatus });
+          const bestStatus = resolveBestStatus(existing.orderStatus, o.orderStatus);
+          orderMap.set(key, { ...existing, ...o, orderStatus: bestStatus });
         }
       }
     });
@@ -595,80 +760,9 @@ exports.updateOrderStatus = async (req, res) => {
       return res.status(400).json({ message: 'Order status is required' });
     }
 
-    let order = null;
-    if (mongoose.connection.readyState === 1) {
-      order = await Order.findOne(buildOrderQuery(searchId)).catch(() => null);
-    }
-
-    if (order) {
-      const previousStatus = order.orderStatus;
-      order.orderStatus = newStatus;
-      order.updatedAt = Date.now();
-      order.statusTimeline = order.statusTimeline || [];
-      order.statusTimeline.push({ status: newStatus, updatedAt: Date.now() });
-
-      if (newStatus === 'Delivered') {
-        order.isDelivered = true;
-        order.deliveredAt = Date.now();
-        if (order.paymentMethod === 'COD') {
-          order.isPaid = true;
-          order.paidAt = Date.now();
-        }
-      }
-
-      const updatedOrder = await order.save();
-
-      // Sync memory store
-      const cleanKey = String(searchId).replace(/^ORD-/, '');
-      const memOrder = (memoryOrders || []).find(o => 
-        String(o._id) === String(searchId) || 
-        String(o.orderId) === String(searchId) ||
-        (o.orderId && String(o.orderId).replace(/^ORD-/, '') === cleanKey)
-      );
-      if (memOrder) {
-        memOrder.orderStatus = newStatus;
-        memOrder.updatedAt = new Date();
-      }
-      const allMerged = getMergedMemoryOrders();
-      saveCachedOrders(allMerged);
-
-      const io = req.app.get('io');
-      if (io) io.emit('order:updated', updatedOrder);
-
-      // Send status update notification email (Customer & Admin)
-      sendOrderStatusUpdateEmail(updatedOrder, previousStatus, newStatus).catch(err =>
-        console.error('Status update email error:', err.message)
-      );
-
-      return res.json(updatedOrder);
-    }
-
-    const cleanKey = String(searchId).replace(/^ORD-/, '');
-    const memOrder = (memoryOrders || []).find(o => 
-      String(o._id) === String(searchId) || 
-      String(o.orderId) === String(searchId) ||
-      (o.orderId && String(o.orderId).replace(/^ORD-/, '') === cleanKey)
-    );
-
-    if (memOrder) {
-      const previousStatus = memOrder.orderStatus;
-      memOrder.orderStatus = newStatus;
-      memOrder.updatedAt = new Date();
-      memOrder.statusTimeline = memOrder.statusTimeline || [];
-      memOrder.statusTimeline.push({ status: newStatus, updatedAt: Date.now() });
-
-      const allMerged = getMergedMemoryOrders();
-      saveCachedOrders(allMerged);
-
-      const io = req.app.get('io');
-      if (io) io.emit('order:updated', memOrder);
-
-      // Send status update notification email (Customer & Admin)
-      sendOrderStatusUpdateEmail(memOrder, previousStatus, newStatus).catch(err =>
-        console.error('Status update email error:', err.message)
-      );
-
-      return res.json(memOrder);
+    const updated = await updateOrderStatusInStore(searchId, newStatus, req);
+    if (updated) {
+      return res.json(updated);
     }
 
     return res.status(404).json({ message: 'Order not found' });

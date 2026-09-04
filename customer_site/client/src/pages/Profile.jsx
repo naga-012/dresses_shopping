@@ -4,11 +4,18 @@ import { User, Package, MapPin, LogOut, ChevronRight, Plus, Check } from 'lucide
 import { useAuthStore } from '../store/authStore';
 import API from '../api';
 import toast from 'react-hot-toast';
+import { io } from 'socket.io-client';
 
 export default function Profile() {
   const { user, logout, updateProfile } = useAuthStore();
   const navigate = useNavigate();
-  const [orders, setOrders] = useState([]);
+  const [orders, setOrders] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
+    } catch (e) {
+      return [];
+    }
+  });
   const [loading, setLoading] = useState(true);
 
   // Profile Edit State
@@ -38,6 +45,55 @@ export default function Profile() {
     phone: user?.phone || ''
   });
 
+  // Real-time socket sync for orders
+  useEffect(() => {
+    const socketUrl = typeof window !== 'undefined' && window.location.hostname.includes('render.com')
+      ? 'https://saha-backend-api.onrender.com'
+      : typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')
+        ? 'https://customersite-psi.vercel.app'
+        : 'http://localhost:5000';
+
+    const socket = io(socketUrl, {
+      transports: ['websocket', 'polling']
+    });
+
+    socket.on('order:updated', (updatedOrder) => {
+      if (!updatedOrder) return;
+      const targetStatus = updatedOrder.orderStatus;
+      const cleanTargetKey = String(updatedOrder.orderId || updatedOrder._id || '').replace(/^ORD-/, '');
+
+      setOrders(prev => prev.map(o => {
+        const oKey = String(o.orderId || o._id || '').replace(/^ORD-/, '');
+        const isMatch = String(o._id) === String(updatedOrder._id) ||
+          (o.orderId && updatedOrder.orderId && String(o.orderId) === String(updatedOrder.orderId)) ||
+          oKey === cleanTargetKey;
+        if (isMatch) {
+          return { ...o, ...updatedOrder, orderStatus: targetStatus || o.orderStatus };
+        }
+        return o;
+      }));
+
+      try {
+        const local = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
+        const updatedLocal = local.map(o => {
+          const oKey = String(o.orderId || o._id || '').replace(/^ORD-/, '');
+          const isMatch = String(o._id) === String(updatedOrder._id) ||
+            (o.orderId && updatedOrder.orderId && String(o.orderId) === String(updatedOrder.orderId)) ||
+            oKey === cleanTargetKey;
+          if (isMatch) {
+            return { ...o, ...updatedOrder, orderStatus: targetStatus || o.orderStatus };
+          }
+          return o;
+        });
+        localStorage.setItem('urbanfit_customer_orders', JSON.stringify(updatedLocal));
+      } catch (e) {}
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+
   useEffect(() => {
     if (!user) {
       navigate('/auth');
@@ -47,17 +103,64 @@ export default function Profile() {
     setEditEmail(user.email || '');
     setEditPhone(user.phone || '');
 
-    const fetchOrders = async () => {
+    let isMounted = true;
+    const fetchOrders = async (showLoading = true) => {
       try {
+        if (showLoading && orders.length === 0) setLoading(true);
         const res = await API.get('/orders/myorders');
-        setOrders(res.data);
+        const apiOrders = Array.isArray(res.data) ? res.data : [];
+
+        // Read local cache and merge latest status
+        const localOrders = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
+        const updatedLocal = localOrders.map(lo => {
+          const match = apiOrders.find(ao => {
+            const loKey = String(lo.orderId || lo._id || '').replace(/^ORD-/, '');
+            const aoKey = String(ao.orderId || ao._id || '').replace(/^ORD-/, '');
+            return loKey === aoKey || String(ao._id) === String(lo._id) || String(ao.orderId) === String(lo.orderId);
+          });
+          if (match && match.orderStatus) {
+            return { ...lo, ...match, orderStatus: match.orderStatus };
+          }
+          return lo;
+        });
+
+        try {
+          localStorage.setItem('urbanfit_customer_orders', JSON.stringify(updatedLocal));
+        } catch (e) {}
+
+        const serverKeys = new Set();
+        apiOrders.forEach(o => {
+          if (o._id) serverKeys.add(String(o._id));
+          if (o.orderId) serverKeys.add(String(o.orderId).replace(/^ORD-/, ''));
+        });
+
+        const missingOnServer = updatedLocal.filter(lo => {
+          const key = String(lo.orderId || lo._id || '').replace(/^ORD-/, '');
+          return !serverKeys.has(key) && !serverKeys.has(String(lo._id));
+        });
+
+        const merged = [...apiOrders, ...missingOnServer].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        if (isMounted) setOrders(merged);
       } catch (err) {
         console.error(err);
+        if (isMounted) {
+          const localOrders = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
+          if (localOrders.length > 0) setOrders(localOrders);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted && showLoading) setLoading(false);
       }
     };
-    fetchOrders();
+
+    fetchOrders(true);
+
+    // Auto-poll every 5 seconds to keep Profile orders live
+    const interval = setInterval(() => fetchOrders(false), 5000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [user]);
 
   const handleSaveProfile = async (e) => {
@@ -265,38 +368,73 @@ export default function Profile() {
             <div style={{ color: '#aaa', fontSize: '13px' }}>No orders placed yet.</div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {orders.map((ord) => (
-                <Link
-                  key={ord._id}
-                  to={`/orders/${ord._id}`}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    background: '#141419',
-                    padding: '16px',
-                    borderRadius: '12px',
-                    border: '1px solid rgba(255,255,255,0.06)',
-                    textDecoration: 'none',
-                    color: '#fff'
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: '14px', fontWeight: 700 }}>Order #{ord._id.substring(0, 8).toUpperCase()}</div>
-                    <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>
-                      {new Date(ord.createdAt).toLocaleDateString()} • {ord.orderItems.length} items
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#d4af37', fontWeight: 600, marginTop: '4px' }}>
-                      Status: {ord.orderStatus}
-                    </div>
-                  </div>
+              {orders.map((ord) => {
+                const targetId = ord.orderId || ord._id;
+                const statusColor = ord.orderStatus === 'Cancelled' ? '#ef4444' :
+                  (ord.orderStatus === 'Delivered' || ord.orderStatus === 'Confirmed' || ord.orderStatus === 'Order Confirmed') ? '#10b981' :
+                  ord.orderStatus === 'Processing' ? '#d4af37' :
+                  ord.orderStatus === 'Shipped' || ord.orderStatus === 'Out for Delivery' ? '#3b82f6' :
+                  '#f59e0b';
+                const statusBg = ord.orderStatus === 'Cancelled' ? 'rgba(239, 68, 68, 0.15)' :
+                  (ord.orderStatus === 'Delivered' || ord.orderStatus === 'Confirmed' || ord.orderStatus === 'Order Confirmed') ? 'rgba(16, 185, 129, 0.15)' :
+                  ord.orderStatus === 'Processing' ? 'rgba(212, 175, 55, 0.18)' :
+                  ord.orderStatus === 'Shipped' || ord.orderStatus === 'Out for Delivery' ? 'rgba(59, 130, 246, 0.15)' :
+                  'rgba(245, 158, 11, 0.15)';
+                const statusBorder = ord.orderStatus === 'Cancelled' ? 'rgba(239, 68, 68, 0.4)' :
+                  (ord.orderStatus === 'Delivered' || ord.orderStatus === 'Confirmed' || ord.orderStatus === 'Order Confirmed') ? 'rgba(16, 185, 129, 0.4)' :
+                  ord.orderStatus === 'Processing' ? 'rgba(212, 175, 55, 0.5)' :
+                  ord.orderStatus === 'Shipped' || ord.orderStatus === 'Out for Delivery' ? 'rgba(59, 130, 246, 0.4)' :
+                  'rgba(245, 158, 11, 0.4)';
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span style={{ fontSize: '15px', fontWeight: 800 }}>₹{ord.totalPrice.toLocaleString()}</span>
-                    <ChevronRight size={18} color="#aaa" />
-                  </div>
-                </Link>
-              ))}
+                return (
+                  <Link
+                    key={ord._id || ord.orderId}
+                    to={`/orders/${targetId}`}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      background: '#141419',
+                      padding: '16px',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(255,255,255,0.06)',
+                      textDecoration: 'none',
+                      color: '#fff'
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 700 }}>
+                        Order #{String(ord.orderId || ord._id).substring(0, 10).toUpperCase()}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#aaa', marginTop: '2px' }}>
+                        {new Date(ord.createdAt).toLocaleDateString()} • {(ord.orderItems || []).length} items
+                      </div>
+                      <div style={{ marginTop: '6px' }}>
+                        <span style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          padding: '3px 10px',
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          background: statusBg,
+                          color: statusColor,
+                          border: `1px solid ${statusBorder}`
+                        }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: statusColor }}></span>
+                          {ord.orderStatus || 'Pending'}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '15px', fontWeight: 800 }}>₹{(ord.totalPrice || 0).toLocaleString()}</span>
+                      <ChevronRight size={18} color="#aaa" />
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           )}
         </div>

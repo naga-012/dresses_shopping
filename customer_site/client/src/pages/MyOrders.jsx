@@ -44,12 +44,13 @@ export default function MyOrders() {
     socket.on('order:updated', (updatedOrder) => {
       if (!updatedOrder) return;
       const targetStatus = updatedOrder.orderStatus;
+      const uKey = String(updatedOrder.orderId || updatedOrder._id || '').replace(/^ORD-/, '');
 
       setOrders(prev => prev.map(o => {
+        const oKey = String(o.orderId || o._id || '').replace(/^ORD-/, '');
         const isMatch = String(o._id) === String(updatedOrder._id) ||
           (o.orderId && updatedOrder.orderId && String(o.orderId) === String(updatedOrder.orderId)) ||
-          String(o._id) === String(updatedOrder.orderId) ||
-          String(o.orderId) === String(updatedOrder._id);
+          (oKey && oKey === uKey);
         if (isMatch) {
           return { ...o, ...updatedOrder, orderStatus: targetStatus || o.orderStatus };
         }
@@ -59,10 +60,10 @@ export default function MyOrders() {
       try {
         const local = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
         const updatedLocal = local.map(o => {
+          const oKey = String(o.orderId || o._id || '').replace(/^ORD-/, '');
           const isMatch = String(o._id) === String(updatedOrder._id) ||
             (o.orderId && updatedOrder.orderId && String(o.orderId) === String(updatedOrder.orderId)) ||
-            String(o._id) === String(updatedOrder.orderId) ||
-            String(o.orderId) === String(updatedOrder._id);
+            (oKey && oKey === uKey);
           if (isMatch) {
             return { ...o, ...updatedOrder, orderStatus: targetStatus || o.orderStatus };
           }

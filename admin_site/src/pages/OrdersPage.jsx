@@ -114,9 +114,12 @@ const OrdersPage = () => {
           const bestStatus = resolveBestStatus(existing.orderStatus, o.orderStatus);
 
           if (newTime > existingTime) {
-            orderMap.set(key, { ...existing, ...o, orderStatus: bestStatus });
+            orderMap.set(key, { ...existing, ...o, orderStatus: o.orderStatus || existing.orderStatus });
+          } else if (existingTime > newTime) {
+            orderMap.set(key, { ...o, ...existing, orderStatus: existing.orderStatus || o.orderStatus });
           } else {
-            orderMap.set(key, { ...o, ...existing, orderStatus: bestStatus });
+            const bestStatus = resolveBestStatus(existing.orderStatus, o.orderStatus);
+            orderMap.set(key, { ...existing, ...o, orderStatus: bestStatus });
           }
         }
       });
@@ -188,14 +191,18 @@ const OrdersPage = () => {
 
   const handleStatusChange = async (orderId, newStatus) => {
     try {
-      const res = await api.patch(`/admin/orders/${orderId}/status`, { status: newStatus });
+      const targetKey = String(orderId || '').trim();
+      const res = await api.patch(`/admin/orders/${targetKey}/status`, { status: newStatus });
       const updatedObj = res.data?.order || res.data;
       toast.success(`Order status updated to ${newStatus}`);
+      const cleanTargetKey = targetKey.replace(/^ORD-/, '');
+
       setOrders(prev => {
         const updated = prev.map(o => {
-          const isMatch = String(o._id) === String(orderId) ||
-            String(o.orderId) === String(orderId) ||
-            (o.orderId && String(o.orderId).replace(/^ORD-/, '') === String(orderId).replace(/^ORD-/, ''));
+          const oKey = String(o.orderId || o._id || '').replace(/^ORD-/, '');
+          const isMatch = String(o._id) === targetKey ||
+            String(o.orderId) === targetKey ||
+            (oKey && oKey === cleanTargetKey);
           return isMatch ? { ...o, ...updatedObj, orderStatus: newStatus } : o;
         });
         try {
@@ -203,8 +210,11 @@ const OrdersPage = () => {
         } catch (e) {}
         return updated;
       });
-      if (selectedOrder && (String(selectedOrder._id) === String(orderId) || String(selectedOrder.orderId) === String(orderId))) {
-        setSelectedOrder(prev => ({ ...prev, ...updatedObj, orderStatus: newStatus }));
+      if (selectedOrder) {
+        const selKey = String(selectedOrder.orderId || selectedOrder._id || '').replace(/^ORD-/, '');
+        if (String(selectedOrder._id) === targetKey || String(selectedOrder.orderId) === targetKey || (selKey && selKey === cleanTargetKey)) {
+          setSelectedOrder(prev => ({ ...prev, ...updatedObj, orderStatus: newStatus }));
+        }
       }
     } catch (error) {
       toast.error('Failed to update order status');
@@ -341,7 +351,7 @@ const OrdersPage = () => {
                       <td className="py-3 px-4">
                         <select
                           value={order.orderStatus || 'Pending'}
-                          onChange={(e) => handleStatusChange(order._id, e.target.value)}
+                          onChange={(e) => handleStatusChange(order._id || order.orderId, e.target.value)}
                           className="bg-slate-900 border border-slate-700/80 text-xs text-slate-200 rounded-lg p-1.5 focus:outline-none focus:border-amber-500"
                         >
                           {statusOptions.map(opt => (
@@ -477,7 +487,7 @@ const OrdersPage = () => {
                 <StatusBadge type="order" status={selectedOrder.orderStatus} />
                 <select
                   value={selectedOrder.orderStatus || 'Pending'}
-                  onChange={(e) => handleStatusChange(selectedOrder._id, e.target.value)}
+                  onChange={(e) => handleStatusChange(selectedOrder._id || selectedOrder.orderId, e.target.value)}
                   className="bg-slate-900 border border-slate-700 text-xs text-slate-100 rounded-xl px-3 py-1.5 focus:outline-none focus:border-amber-500"
                 >
                   {statusOptions.map(opt => (

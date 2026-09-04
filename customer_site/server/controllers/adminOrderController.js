@@ -1,7 +1,7 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const mongoose = require('mongoose');
-const { memoryOrders, getMergedMemoryOrders, saveCachedOrders } = require('./orderController');
+const { memoryOrders, getMergedMemoryOrders, saveCachedOrders, updateOrderStatusInStore } = require('./orderController');
 const { sendOrderStatusUpdateEmail } = require('../utils/emailService');
 
 const STATUS_RANK = {
@@ -190,118 +190,17 @@ exports.getAdminOrderById = async (req, res) => {
 // @route PATCH /api/admin/orders/:id/status
 exports.updateAdminOrderStatus = async (req, res) => {
   try {
-    const { status } = req.body;
+    const { status, orderStatus } = req.body;
+    const newStatus = status || orderStatus;
     const searchId = req.params.id;
 
-    if (!status) {
+    if (!newStatus) {
       return res.status(400).json({ message: 'Status is required' });
     }
 
-    let order = null;
-    if (mongoose.connection.readyState === 1) {
-      order = await Order.findOne(buildOrderQuery(searchId)).catch(() => null);
-    }
-
-    if (order) {
-      const previousStatus = order.orderStatus;
-      order.orderStatus = status;
-      order.updatedAt = new Date();
-      order.statusTimeline = order.statusTimeline || [];
-      order.statusTimeline.push({
-        status,
-        updatedAt: new Date()
-      });
-
-      if (status === 'Delivered') {
-        order.isDelivered = true;
-        order.deliveredAt = new Date();
-        if (order.paymentMethod === 'COD') {
-          order.isPaid = true;
-          order.paidAt = new Date();
-        }
-      } else if (status === 'Cancelled' && previousStatus !== 'Cancelled') {
-        for (const item of (order.orderItems || [])) {
-          if (item.product && mongoose.Types.ObjectId.isValid(item.product)) {
-            const product = await Product.findById(item.product).catch(() => null);
-            if (product) {
-              product.stock += (item.qty || 1);
-              if (product.soldCount >= (item.qty || 1)) {
-                product.soldCount -= (item.qty || 1);
-              }
-              if (product.stock > 0) {
-                product.isAvailable = true;
-              }
-              await product.save().catch(() => {});
-            }
-          }
-        }
-      }
-
-      const updatedOrder = await order.save();
-
-      // Sync memoryOrders store & cached file
-      const cleanKey = searchId.replace(/^ORD-/, '');
-      const memOrder = (memoryOrders || []).find(o => 
-        String(o._id) === searchId || 
-        String(o.orderId) === searchId ||
-        (o.orderId && o.orderId.replace(/^ORD-/, '') === cleanKey)
-      );
-      if (memOrder) {
-        memOrder.orderStatus = status;
-        memOrder.updatedAt = new Date();
-        memOrder.statusTimeline = memOrder.statusTimeline || [];
-        memOrder.statusTimeline.push({ status, updatedAt: new Date() });
-      }
-      if (getMergedMemoryOrders) {
-        const allMerged = getMergedMemoryOrders();
-        if (saveCachedOrders) saveCachedOrders(allMerged);
-      }
-
-      emitOrderEvent(req, 'order:updated', updatedOrder);
-
-      // Send automated status update email (Customer & Admin)
-      sendOrderStatusUpdateEmail(updatedOrder, previousStatus, status).catch(err =>
-        console.error('Admin status update email error:', err.message)
-      );
-
-      return res.json(updatedOrder);
-    }
-
-    // Memory order fallback
-    const allMem = getMergedMemoryOrders ? getMergedMemoryOrders() : (memoryOrders || []);
-    const cleanKey = searchId.replace(/^ORD-/, '');
-    const memOrder = allMem.find(o => 
-      String(o._id) === searchId || 
-      String(o.orderId) === searchId ||
-      (o.orderId && o.orderId.replace(/^ORD-/, '') === cleanKey)
-    );
-
-    if (memOrder) {
-      const previousStatus = memOrder.orderStatus;
-      memOrder.orderStatus = status;
-      memOrder.updatedAt = new Date();
-      memOrder.statusTimeline = memOrder.statusTimeline || [];
-      memOrder.statusTimeline.push({ status, updatedAt: new Date() });
-      if (status === 'Delivered') {
-        memOrder.isDelivered = true;
-        memOrder.deliveredAt = new Date();
-        if (memOrder.paymentMethod === 'COD') {
-          memOrder.isPaid = true;
-          memOrder.paidAt = new Date();
-        }
-      }
-      if (getMergedMemoryOrders) {
-        const allMerged = getMergedMemoryOrders();
-        if (saveCachedOrders) saveCachedOrders(allMerged);
-      }
-      emitOrderEvent(req, 'order:updated', memOrder);
-
-      // Send automated status update email (Customer & Admin)
-      sendOrderStatusUpdateEmail(memOrder, previousStatus, status).catch(err =>
-        console.error('Admin status update email error:', err.message)
-      );
-
-      return res.json(memOrder);
+    const updated = await updateOrderStatusInStore(searchId, newStatus, req);
+    if (updated) {
+      return res.json(updated);
     }
 
     return res.status(404).json({ message: 'Order not found' });

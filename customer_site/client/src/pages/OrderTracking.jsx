@@ -134,16 +134,28 @@ export default function OrderTracking() {
             ? 'rgba(239, 68, 68, 0.2)'
             : (order.orderStatus === 'Delivered' || order.orderStatus === 'Confirmed' || order.orderStatus === 'Order Confirmed')
             ? 'rgba(16, 185, 129, 0.2)'
+            : order.orderStatus === 'Processing'
+            ? 'rgba(212, 175, 55, 0.2)'
+            : order.orderStatus === 'Shipped' || order.orderStatus === 'Out for Delivery'
+            ? 'rgba(59, 130, 246, 0.2)'
             : 'rgba(245, 158, 11, 0.2)',
           color: order.orderStatus === 'Cancelled'
             ? '#ef4444'
             : (order.orderStatus === 'Delivered' || order.orderStatus === 'Confirmed' || order.orderStatus === 'Order Confirmed')
             ? '#10b981'
+            : order.orderStatus === 'Processing'
+            ? '#d4af37'
+            : order.orderStatus === 'Shipped' || order.orderStatus === 'Out for Delivery'
+            ? '#3b82f6'
             : '#f59e0b',
           border: order.orderStatus === 'Cancelled'
             ? '1px solid rgba(239, 68, 68, 0.4)'
             : (order.orderStatus === 'Delivered' || order.orderStatus === 'Confirmed' || order.orderStatus === 'Order Confirmed')
             ? '1px solid rgba(16, 185, 129, 0.4)'
+            : order.orderStatus === 'Processing'
+            ? '1px solid rgba(212, 175, 55, 0.5)'
+            : order.orderStatus === 'Shipped' || order.orderStatus === 'Out for Delivery'
+            ? '1px solid rgba(59, 130, 246, 0.4)'
             : '1px solid rgba(245, 158, 11, 0.4)',
           padding: '6px 16px',
           borderRadius: '20px',
