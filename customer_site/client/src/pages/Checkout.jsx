@@ -18,7 +18,10 @@ export default function Checkout() {
     city: '',
     state: '',
     pincode: '',
-    phone: user?.phone || ''
+    phone: user?.phone || '',
+    googleMapsUrl: '',
+    lat: null,
+    lng: null
   });
 
   const [paymentMethod, setPaymentMethod] = useState('UPI'); // 'UPI', 'Credit Card', 'Debit Card', 'COD'
@@ -62,20 +65,26 @@ export default function Checkout() {
     const city = addrObj.city || addrObj.town || addrObj.village || addrObj.state_district || place.display_name?.split(',')[0] || '';
     const state = addrObj.state || '';
     const pincode = addrObj.postcode || '';
+    const lat = place.lat ? parseFloat(place.lat) : null;
+    const lon = place.lon ? parseFloat(place.lon) : null;
 
     const streetString = [house, road, suburb].filter(Boolean).join(', ') || place.display_name?.split(',').slice(0, 2).join(',') || searchQuery;
+    const gUrl = (lat && lon) ? `https://www.google.com/maps?q=${lat},${lon}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(streetString + ', ' + city)}`;
 
     setAddress(prev => ({
       ...prev,
       street: streetString,
       city: city || prev.city,
       state: state || prev.state,
-      pincode: pincode || prev.pincode
+      pincode: pincode || prev.pincode,
+      googleMapsUrl: gUrl,
+      lat,
+      lng: lon
     }));
 
     setSuggestions([]);
     setSearchQuery('');
-    toast.success('Address details auto-filled!');
+    toast.success('Google Location & address details auto-filled!');
   };
 
   const handleGetLocation = () => {
@@ -85,11 +94,13 @@ export default function Checkout() {
     }
 
     setDetectingLoc(true);
-    toast.loading('Detecting your GPS location...', { id: 'loc-toast' });
+    toast.loading('Detecting exact Google GPS location...', { id: 'loc-toast' });
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
+        const gUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
+
         try {
           const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
           const data = await res.json();
@@ -103,23 +114,28 @@ export default function Checkout() {
             const state = addrObj.state || '';
             const pincode = addrObj.postcode || '';
 
-            const streetString = [house, road, suburb].filter(Boolean).join(', ') || data.display_name?.split(',').slice(0, 2).join(',') || 'Current GPS Location';
+            const streetString = [house, road, suburb].filter(Boolean).join(', ') || data.display_name?.split(',').slice(0, 2).join(',') || 'GPS Pin Location';
 
             setAddress(prev => ({
               ...prev,
               street: streetString,
               city: city || prev.city,
               state: state || prev.state,
-              pincode: pincode || prev.pincode
+              pincode: pincode || prev.pincode,
+              googleMapsUrl: gUrl,
+              lat: latitude,
+              lng: longitude
             }));
 
-            toast.success('Location auto-detected & filled!', { id: 'loc-toast' });
+            toast.success('Google GPS Location detected & pinned!', { id: 'loc-toast' });
           } else {
-            toast.error('Location detected, please type street address.', { id: 'loc-toast' });
+            setAddress(prev => ({ ...prev, googleMapsUrl: gUrl, lat: latitude, lng: longitude }));
+            toast.success('Google GPS coordinates pinned!', { id: 'loc-toast' });
           }
         } catch (err) {
           console.error(err);
-          toast.error('Location coordinates captured.', { id: 'loc-toast' });
+          setAddress(prev => ({ ...prev, googleMapsUrl: gUrl, lat: latitude, lng: longitude }));
+          toast.success('Google GPS location captured!', { id: 'loc-toast' });
         } finally {
           setDetectingLoc(false);
         }
@@ -155,6 +171,11 @@ export default function Checkout() {
       return;
     }
 
+    if (!address.email || !address.email.includes('@')) {
+      toast.error('Please enter a valid email address for order confirmation & tracking updates');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -168,9 +189,20 @@ export default function Checkout() {
         qty: item.qty
       }));
 
+      const fullAddressStr = [address.street, address.city, address.state, address.pincode].filter(Boolean).join(', ');
+      const finalGoogleMapUrl = address.googleMapsUrl || (address.lat && address.lng
+        ? `https://www.google.com/maps?q=${address.lat},${address.lng}`
+        : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddressStr)}`
+      );
+
+      const finalAddress = {
+        ...address,
+        googleMapsUrl: finalGoogleMapUrl
+      };
+
       const payload = {
         orderItems,
-        shippingAddress: address,
+        shippingAddress: finalAddress,
         paymentMethod,
         itemsPrice: subtotal,
         shippingPrice: deliveryPrice,
@@ -214,7 +246,7 @@ export default function Checkout() {
           <div className="glass-panel" style={{ padding: '24px', borderRadius: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
               <h3 style={{ fontFamily: 'Outfit', fontSize: '18px', fontWeight: 700, margin: 0, color: '#d4af37', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <MapPin size={20} /> 1. Delivery Address
+                <MapPin size={20} /> 1. Delivery Address & Google Location
               </h3>
               <button
                 type="button"
@@ -235,7 +267,7 @@ export default function Checkout() {
                 }}
               >
                 {detectingLoc ? <Loader2 size={14} className="animate-spin" /> : <Navigation size={14} />}
-                {detectingLoc ? 'Detecting...' : 'Use Current Location'}
+                {detectingLoc ? 'Detecting...' : '📍 Use Google Location (GPS)'}
               </button>
             </div>
 
@@ -381,6 +413,54 @@ export default function Checkout() {
                 />
               </div>
             </div>
+
+            {/* Live Google Maps Location Pin Card */}
+            {(address.lat || (address.street && address.city)) && (
+              <div style={{ marginTop: '20px', borderRadius: '12px', overflow: 'hidden', border: '1px solid rgba(212,175,55,0.4)', background: 'rgba(20, 20, 28, 0.7)', padding: '14px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', fontWeight: 700, color: '#d4af37', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <MapPin size={16} /> Live Google Maps Location Pin
+                  </span>
+                  <a
+                    href={address.googleMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([address.street, address.city, address.pincode].filter(Boolean).join(', '))}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      fontSize: '12px',
+                      color: '#60a5fa',
+                      textDecoration: 'none',
+                      fontWeight: 600,
+                      background: 'rgba(59, 130, 246, 0.1)',
+                      padding: '4px 10px',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(59, 130, 246, 0.3)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px'
+                    }}
+                  >
+                    Open in Google Maps ↗
+                  </a>
+                </div>
+                <div style={{ borderRadius: '10px', overflow: 'hidden', height: '170px', background: '#09090b', border: '1px solid rgba(255,255,255,0.06)' }}>
+                  <iframe
+                    title="Google Maps Location Pin"
+                    width="100%"
+                    height="100%"
+                    style={{ border: 0 }}
+                    loading="lazy"
+                    src={
+                      address.lat && address.lng
+                        ? `https://maps.google.com/maps?q=${address.lat},${address.lng}&z=16&output=embed`
+                        : `https://maps.google.com/maps?q=${encodeURIComponent([address.street, address.city, address.pincode].filter(Boolean).join(', '))}&z=14&output=embed`
+                    }
+                  />
+                </div>
+                <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#9ca3af' }}>
+                  📍 {address.lat && address.lng ? `GPS: ${address.lat.toFixed(5)}, ${address.lng.toFixed(5)} • ` : ''}Delivery partner will use this Google pin for direct doorstep navigation.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Step 2: Payment Gateway Selection */}

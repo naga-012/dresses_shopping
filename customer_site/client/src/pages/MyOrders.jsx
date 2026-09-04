@@ -42,14 +42,16 @@ export default function MyOrders() {
     });
 
     socket.on('order:updated', (updatedOrder) => {
+      if (!updatedOrder) return;
+      const targetStatus = updatedOrder.orderStatus;
+
       setOrders(prev => prev.map(o => {
         const isMatch = String(o._id) === String(updatedOrder._id) ||
           (o.orderId && updatedOrder.orderId && String(o.orderId) === String(updatedOrder.orderId)) ||
           String(o._id) === String(updatedOrder.orderId) ||
           String(o.orderId) === String(updatedOrder._id);
         if (isMatch) {
-          const bestStatus = resolveBestStatus(o.orderStatus, updatedOrder.orderStatus);
-          return { ...o, ...updatedOrder, orderStatus: bestStatus };
+          return { ...o, ...updatedOrder, orderStatus: targetStatus || o.orderStatus };
         }
         return o;
       }));
@@ -62,8 +64,7 @@ export default function MyOrders() {
             String(o._id) === String(updatedOrder.orderId) ||
             String(o.orderId) === String(updatedOrder._id);
           if (isMatch) {
-            const bestStatus = resolveBestStatus(o.orderStatus, updatedOrder.orderStatus);
-            return { ...o, ...updatedOrder, orderStatus: bestStatus };
+            return { ...o, ...updatedOrder, orderStatus: targetStatus || o.orderStatus };
           }
           return o;
         });
@@ -92,19 +93,15 @@ export default function MyOrders() {
     const fetchOrders = async (showLoading = true) => {
       try {
         if (showLoading) setLoading(true);
-        const localOrders = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
 
-        // Auto-sync local orders to backend so admin site has every customer order
-        if (Array.isArray(localOrders) && localOrders.length > 0) {
-          try {
-            await API.post('/orders/sync', localOrders);
-          } catch (e) {}
-        }
-
+        // 1. Fetch fresh orders directly from server first
         const res = await API.get('/orders/myorders');
         const apiOrders = Array.isArray(res.data) ? res.data : [];
 
-        // Sync updated order status from API into local orders preserving highest rank
+        // 2. Read local cache
+        const localOrders = JSON.parse(localStorage.getItem('urbanfit_customer_orders') || '[]');
+
+        // 3. Update local orders with latest server order status
         const updatedLocal = localOrders.map(lo => {
           const match = apiOrders.find(ao => {
             const loKey = String(lo.orderId || lo._id).replace(/^ORD-/, '');
@@ -112,39 +109,34 @@ export default function MyOrders() {
             return loKey === aoKey || String(ao._id) === String(lo._id) || String(ao.orderId) === String(lo.orderId);
           });
           if (match && match.orderStatus) {
-            const bestStatus = resolveBestStatus(lo.orderStatus, match.orderStatus);
-            return { ...lo, ...match, orderStatus: bestStatus };
+            return { ...lo, ...match, orderStatus: match.orderStatus };
           }
           return lo;
         });
 
-        const refreshedLocal = await Promise.all(updatedLocal.map(async (lo) => {
-          try {
-            const searchId = lo.orderId || lo._id;
-            const single = await API.get(`/orders/${searchId}`);
-            if (single.data && single.data.orderStatus) {
-              const bestStatus = resolveBestStatus(lo.orderStatus, single.data.orderStatus);
-              return { ...lo, ...single.data, orderStatus: bestStatus };
-            }
-          } catch (e) {}
-          return lo;
-        }));
-
         try {
-          localStorage.setItem('urbanfit_customer_orders', JSON.stringify(refreshedLocal));
+          localStorage.setItem('urbanfit_customer_orders', JSON.stringify(updatedLocal));
         } catch (e) {}
 
-        const dbIds = new Set();
+        // 4. Check if there are any brand new offline/unsaved orders in local storage
+        const serverKeys = new Set();
         apiOrders.forEach(o => {
-          if (o._id) dbIds.add(String(o._id));
-          if (o.orderId) dbIds.add(String(o.orderId));
+          if (o._id) serverKeys.add(String(o._id));
+          if (o.orderId) serverKeys.add(String(o.orderId).replace(/^ORD-/, ''));
         });
 
-        const uniqueLocal = refreshedLocal.filter(o =>
-          !dbIds.has(String(o._id)) && (!o.orderId || !dbIds.has(String(o.orderId)))
-        );
+        const missingOnServer = updatedLocal.filter(lo => {
+          const key = String(lo.orderId || lo._id || '').replace(/^ORD-/, '');
+          return !serverKeys.has(key) && !serverKeys.has(String(lo._id));
+        });
 
-        const merged = [...apiOrders, ...uniqueLocal].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+        if (missingOnServer.length > 0) {
+          try {
+            await API.post('/orders/sync', missingOnServer);
+          } catch (e) {}
+        }
+
+        const merged = [...apiOrders, ...missingOnServer].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
         if (isMounted) setOrders(merged);
       } catch (err) {
         console.error('Error fetching orders:', err);
@@ -159,8 +151,8 @@ export default function MyOrders() {
 
     fetchOrders(true);
 
-    // Auto-poll every 6 seconds so user's orders page seamlessly stays in sync
-    const interval = setInterval(() => fetchOrders(false), 6000);
+    // Auto-poll every 4 seconds so customer's orders page seamlessly stays in live sync
+    const interval = setInterval(() => fetchOrders(false), 4000);
 
     return () => {
       isMounted = false;

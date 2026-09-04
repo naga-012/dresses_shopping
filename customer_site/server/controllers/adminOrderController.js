@@ -1,7 +1,8 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const mongoose = require('mongoose');
-const { memoryOrders, getMergedMemoryOrders } = require('./orderController');
+const { memoryOrders, getMergedMemoryOrders, saveCachedOrders } = require('./orderController');
+const { sendOrderStatusUpdateEmail } = require('../utils/emailService');
 
 const STATUS_RANK = {
   'Pending': 1,
@@ -252,10 +253,17 @@ exports.updateAdminOrderStatus = async (req, res) => {
         memOrder.statusTimeline.push({ status, updatedAt: new Date() });
       }
       if (getMergedMemoryOrders) {
-        getMergedMemoryOrders();
+        const allMerged = getMergedMemoryOrders();
+        if (saveCachedOrders) saveCachedOrders(allMerged);
       }
 
       emitOrderEvent(req, 'order:updated', updatedOrder);
+
+      // Send automated status update email (Customer & Admin)
+      sendOrderStatusUpdateEmail(updatedOrder, previousStatus, status).catch(err =>
+        console.error('Admin status update email error:', err.message)
+      );
+
       return res.json(updatedOrder);
     }
 
@@ -269,6 +277,7 @@ exports.updateAdminOrderStatus = async (req, res) => {
     );
 
     if (memOrder) {
+      const previousStatus = memOrder.orderStatus;
       memOrder.orderStatus = status;
       memOrder.updatedAt = new Date();
       memOrder.statusTimeline = memOrder.statusTimeline || [];
@@ -282,9 +291,16 @@ exports.updateAdminOrderStatus = async (req, res) => {
         }
       }
       if (getMergedMemoryOrders) {
-        getMergedMemoryOrders();
+        const allMerged = getMergedMemoryOrders();
+        if (saveCachedOrders) saveCachedOrders(allMerged);
       }
       emitOrderEvent(req, 'order:updated', memOrder);
+
+      // Send automated status update email (Customer & Admin)
+      sendOrderStatusUpdateEmail(memOrder, previousStatus, status).catch(err =>
+        console.error('Admin status update email error:', err.message)
+      );
+
       return res.json(memOrder);
     }
 

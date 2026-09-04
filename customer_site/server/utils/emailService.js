@@ -455,8 +455,233 @@ const sendOrderNotificationEmail = async (order) => {
   }
 };
 
+/**
+ * Generates rich HTML content for Order Status Update Email (e.g. Confirmed, Shipped, Delivered)
+ */
+const generateOrderStatusUpdateHtml = (order, newStatus, previousStatus) => {
+  const orderId = order.orderId || order._id || 'N/A';
+  const updatedAt = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+
+  const address = order.shippingAddress || {};
+  const customerName = address.fullName || address.name || 'Valued Customer';
+  const customerStreet = address.street || address.address || '';
+  const customerCity = address.city || '';
+  const customerState = address.state || '';
+  const customerPincode = address.pincode || address.zip || '';
+  const fullAddress = [customerStreet, customerCity, customerState, customerPincode].filter(Boolean).join(', ') || 'Address specified during checkout';
+  const googleMapUrl = address.googleMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddress)}`;
+
+  const items = order.orderItems || [];
+  const itemsHtml = items.map((item) => {
+    const itemName = item.name || item.title || 'Product Item';
+    const qty = item.qty || item.quantity || 1;
+    const price = Number(item.price || 0);
+    const itemTotal = price * qty;
+    const size = item.size ? ` (Size: ${item.size})` : '';
+    const imgUrl = item.image || item.imageUrl || '';
+
+    return `
+      <tr style="border-bottom: 1px solid #f0f0f0;">
+        <td style="padding: 12px; text-align: center; width: 60px;">
+          ${imgUrl ? `<img src="${imgUrl}" alt="${itemName}" style="width: 50px; height: 50px; object-fit: cover; border-radius: 6px;" />` : `<div style="width:50px;height:50px;background:#f3f4f6;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#9ca3af;font-size:10px;">Item</div>`}
+        </td>
+        <td style="padding: 12px; font-weight: 600; color: #1f2937;">
+          ${itemName}<span style="color: #6b7280; font-size: 13px; font-weight: normal;">${size}</span>
+        </td>
+        <td style="padding: 12px; text-align: center; color: #4b5563;">${qty}</td>
+        <td style="padding: 12px; text-align: right; font-weight: 600; color: #111827;">₹${itemTotal.toLocaleString('en-IN')}</td>
+      </tr>
+    `;
+  }).join('');
+
+  const totalPrice = Number(order.totalPrice || 0);
+
+  let statusIcon = '✅';
+  let statusColor = '#10b981';
+  let statusHeading = 'Order Status Updated';
+  let statusMessage = `Your order status has been updated to <strong>${newStatus}</strong>.`;
+
+  if (newStatus === 'Confirmed' || newStatus === 'Order Confirmed') {
+    statusIcon = '🎉';
+    statusColor = '#10b981';
+    statusHeading = 'Order Confirmed!';
+    statusMessage = 'Great news! Your order has been confirmed by SAHA Men\'s Store and is currently being prepared for dispatch.';
+  } else if (newStatus === 'Processing') {
+    statusIcon = '⚙️';
+    statusColor = '#d97706';
+    statusHeading = 'Order in Processing';
+    statusMessage = 'Your apparel is undergoing quality checks and packaging at our fulfillment center.';
+  } else if (newStatus === 'Shipped' || newStatus === 'Out for Delivery') {
+    statusIcon = '🚚';
+    statusColor = '#2563eb';
+    statusHeading = 'Order Dispatched!';
+    statusMessage = 'Your order is on the way to your delivery address. Our courier partner will deliver it soon.';
+  } else if (newStatus === 'Delivered') {
+    statusIcon = '📦';
+    statusColor = '#059669';
+    statusHeading = 'Order Delivered!';
+    statusMessage = 'Your package has been successfully delivered. We hope you enjoy your new style!';
+  } else if (newStatus === 'Cancelled') {
+    statusIcon = '❌';
+    statusColor = '#ef4444';
+    statusHeading = 'Order Cancelled';
+    statusMessage = 'Your order has been cancelled. If you did not request this, please contact store support.';
+  }
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Order ${newStatus} - ${orderId}</title>
+    </head>
+    <body style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 20px;">
+      <div style="max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.06); border: 1px solid #e2e8f0;">
+        
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 26px 20px; text-align: center;">
+          <h1 style="margin: 0; font-size: 24px; font-weight: 800; color: #d4af37; letter-spacing: 1.5px;">SAHA MEN'S STORE</h1>
+          <p style="margin: 4px 0 0 0; font-size: 13px; color: #cbd5e1;">Order Notification & Status Update</p>
+        </div>
+
+        <!-- Status Hero Banner -->
+        <div style="background-color: #f8fafc; border-bottom: 2px solid ${statusColor}; padding: 24px 20px; text-align: center;">
+          <div style="font-size: 32px; margin-bottom: 6px;">${statusIcon}</div>
+          <h2 style="margin: 0; color: #0f172a; font-size: 20px; font-weight: 800;">${statusHeading}</h2>
+          <p style="margin: 8px auto 0 auto; color: #475569; font-size: 14px; max-width: 480px; line-height: 1.5;">
+            ${statusMessage}
+          </p>
+          <div style="margin-top: 14px; display: inline-block; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 20px; padding: 6px 16px; font-size: 13px; font-weight: 700; color: ${statusColor}; box-shadow: 0 2px 4px rgba(0,0,0,0.04);">
+            Current Status: ${newStatus}
+          </div>
+        </div>
+
+        <div style="padding: 24px;">
+
+          <!-- Order Summary Card -->
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px;">
+            <table style="width: 100%; font-size: 13px; color: #475569;">
+              <tr>
+                <td style="padding: 4px 0;">Order Reference:</td>
+                <td style="padding: 4px 0; text-align: right; font-weight: 700; color: #0f172a; font-family: monospace;">${orderId}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0;">Updated On:</td>
+                <td style="padding: 4px 0; text-align: right; color: #334155;">${updatedAt}</td>
+              </tr>
+              <tr>
+                <td style="padding: 4px 0;">Total Amount:</td>
+                <td style="padding: 4px 0; text-align: right; font-weight: 700; color: #b45309;">₹${totalPrice.toLocaleString('en-IN')}</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Items Table -->
+          <h3 style="margin-top: 0; margin-bottom: 12px; font-size: 14px; color: #0f172a; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">
+            🛍️ Purchased Items
+          </h3>
+          <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;">
+            <thead>
+              <tr style="background-color: #f1f5f9; color: #475569; text-align: left;">
+                <th style="padding: 10px; text-align: center; width: 60px;">Item</th>
+                <th style="padding: 10px;">Product</th>
+                <th style="padding: 10px; text-align: center;">Qty</th>
+                <th style="padding: 10px; text-align: right;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <!-- Shipping Address with Google Map Pin -->
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px 18px; margin-bottom: 24px;">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px;">
+              <h4 style="margin: 0; font-size: 13px; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px;">
+                📍 Shipping Address
+              </h4>
+              <a href="${googleMapUrl}" target="_blank" style="color: #2563eb; font-size: 12px; font-weight: 600; text-decoration: none;">
+                🗺️ View on Google Maps
+              </a>
+            </div>
+            <p style="margin: 0; font-size: 13px; color: #334155; line-height: 1.5;">
+              <strong>${customerName}</strong><br/>
+              ${fullAddress}
+            </p>
+          </div>
+
+          <!-- Action Buttons -->
+          <div style="text-align: center; margin: 25px 0 10px 0;">
+            <a href="${process.env.CLIENT_URL || 'http://localhost:5173'}/orders/${orderId}" style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); color: #d4af37; text-decoration: none; padding: 14px 28px; border-radius: 8px; font-weight: 700; font-size: 14px; display: inline-block; box-shadow: 0 4px 12px rgba(0,0,0,0.15);">
+              📦 Track Live Order Status
+            </a>
+          </div>
+
+        </div>
+
+        <!-- Footer -->
+        <div style="background-color: #f1f5f9; padding: 16px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0;">
+          <p style="margin: 0 0 4px 0; font-weight: 600; color: #334155;">SAHA MEN'S STORE</p>
+          <p style="margin: 0;">Automated email update from SAHA Men's Store Customer Care.</p>
+        </div>
+
+      </div>
+    </body>
+    </html>
+  `;
+};
+
+/**
+ * Sends order status update email to the customer AND alert copy to store admin
+ */
+const sendOrderStatusUpdateEmail = async (order, previousStatus, newStatus) => {
+  if (!order || !newStatus) return;
+
+  const orderId = order.orderId || order._id || 'N/A';
+  const recipientEmail = process.env.NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || 'myakalanagarjun09@gmail.com';
+  const emailUser = process.env.EMAIL_USER || 'myakalanagarjun09@gmail.com';
+  const defaultPass = 'lgmlszhtstffduqg';
+  const rawPass = process.env.EMAIL_PASS || defaultPass;
+  const emailPass = rawPass ? rawPass.replace(/\s+/g, '') : defaultPass;
+  const emailHost = process.env.EMAIL_HOST || 'smtp.gmail.com';
+  const emailPort = Number(process.env.EMAIL_PORT || 587);
+
+  console.log(`[Email Service] 📨 Preparing status update email for Order #${orderId} -> Status: ${newStatus}`);
+
+  const customerEmail = order.shippingAddress?.email || order.userEmail || order.email || (typeof order.user === 'object' ? order.user?.email : null) || recipientEmail;
+
+  try {
+    const transporter = createTransporter(emailUser, emailPass, emailHost, emailPort);
+    const htmlContent = generateOrderStatusUpdateHtml(order, newStatus, previousStatus);
+
+    // 1. Send status update to Customer
+    if (customerEmail && typeof customerEmail === 'string' && customerEmail.includes('@')) {
+      const info = await transporter.sendMail({
+        from: `"SAHA Men's Store" <${emailUser}>`,
+        to: customerEmail,
+        subject: `🎉 Order #${orderId} Update: ${newStatus}`,
+        html: htmlContent
+      });
+      console.log(`[Email Service] ✅ Customer status update sent to ${customerEmail}. Message ID: ${info.messageId}`);
+    }
+
+    // 2. If customer email is different from admin email, also notify admin of status confirmation
+    if (recipientEmail && recipientEmail.toLowerCase() !== (customerEmail || '').toLowerCase()) {
+      await transporter.sendMail({
+        from: `"SAHA Men's Store System" <${emailUser}>`,
+        to: recipientEmail,
+        subject: `📋 Order #${orderId} Status Updated to ${newStatus}`,
+        html: htmlContent
+      }).catch(err => console.warn('Admin status email copy warning:', err.message));
+    }
+  } catch (error) {
+    console.error(`[Email Service Error] ❌ Failed to dispatch status update email for Order #${orderId}:`, error.message);
+  }
+};
+
 module.exports = {
   sendOrderNotificationEmail,
+  sendOrderStatusUpdateEmail,
   testEmailConnection,
   sendTestDiagnosticEmail
 };

@@ -305,7 +305,28 @@ const OrdersPage = () => {
                       </td>
                       <td className="py-3 px-4">
                         <p className="font-semibold text-slate-100">{order.shippingAddress?.fullName || order.user?.name || 'Customer'}</p>
-                        <p className="text-[10px] text-slate-400">{order.shippingAddress?.phone || order.user?.phone || 'No phone'}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="text-[10px] text-slate-400">{order.shippingAddress?.phone || order.user?.phone || 'No phone'}</span>
+                          {(() => {
+                            const addr = order.shippingAddress || {};
+                            const fullAddr = [addr.street, addr.city, addr.pincode].filter(Boolean).join(', ');
+                            const gUrl = addr.googleMapsUrl || (addr.lat && addr.lng
+                              ? `https://www.google.com/maps?q=${addr.lat},${addr.lng}`
+                              : (fullAddr ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddr)}` : null));
+                            if (!gUrl) return null;
+                            return (
+                              <a
+                                href={gUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                title="Open Google Maps"
+                                className="text-[10px] text-blue-400 hover:text-blue-300 font-semibold inline-flex items-center gap-0.5 bg-blue-500/10 px-1.5 py-0.5 rounded border border-blue-500/20"
+                              >
+                                🗺️ Maps
+                              </a>
+                            );
+                          })()}
+                        </div>
                       </td>
                       <td className="py-3 px-4 text-slate-400 text-[11px]">
                         {new Date(order.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
@@ -375,14 +396,53 @@ const OrdersPage = () => {
                 <p className="text-slate-400 flex items-center gap-1"><Phone size={10} /> {selectedOrder.shippingAddress?.phone || 'N/A'}</p>
               </div>
 
-              <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-1">
-                <p className="font-bold text-slate-300 uppercase tracking-wider text-[10px] mb-1 flex items-center gap-1">
-                  <MapPin size={12} /> Shipping Address
-                </p>
+              <div className="p-3 rounded-xl bg-slate-900/60 border border-slate-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="font-bold text-slate-300 uppercase tracking-wider text-[10px] flex items-center gap-1">
+                    <MapPin size={12} className="text-amber-400" /> Shipping Address
+                  </p>
+                  {(() => {
+                    const addr = selectedOrder.shippingAddress || {};
+                    const fullAddr = [addr.street, addr.city, addr.state, addr.pincode].filter(Boolean).join(', ');
+                    const gUrl = addr.googleMapsUrl || (addr.lat && addr.lng
+                      ? `https://www.google.com/maps?q=${addr.lat},${addr.lng}`
+                      : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddr)}`);
+                    return (
+                      <a
+                        href={gUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2 py-0.5 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 text-[10px] font-bold border border-blue-500/30 flex items-center gap-1 transition"
+                      >
+                        📍 Open in Google Maps ↗
+                      </a>
+                    );
+                  })()}
+                </div>
                 <p className="text-slate-200">{selectedOrder.shippingAddress?.street}</p>
                 <p className="text-slate-400">
                   {selectedOrder.shippingAddress?.city}, {selectedOrder.shippingAddress?.state} — {selectedOrder.shippingAddress?.pincode}
                 </p>
+                {(() => {
+                  const addr = selectedOrder.shippingAddress || {};
+                  const fullAddr = [addr.street, addr.city, addr.pincode].filter(Boolean).join(', ');
+                  const embedSrc = (addr.lat && addr.lng)
+                    ? `https://maps.google.com/maps?q=${addr.lat},${addr.lng}&z=15&output=embed`
+                    : (fullAddr ? `https://maps.google.com/maps?q=${encodeURIComponent(fullAddr)}&z=14&output=embed` : null);
+                  if (!embedSrc) return null;
+                  return (
+                    <div className="mt-2 rounded-lg overflow-hidden border border-slate-700/60 h-28 bg-slate-950">
+                      <iframe
+                        title="Delivery Location Map"
+                        width="100%"
+                        height="100%"
+                        style={{ border: 0 }}
+                        loading="lazy"
+                        src={embedSrc}
+                      />
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 

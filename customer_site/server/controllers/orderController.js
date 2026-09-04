@@ -1,7 +1,7 @@
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const mongoose = require('mongoose');
-const { sendOrderNotificationEmail } = require('../utils/emailService');
+const { sendOrderNotificationEmail, sendOrderStatusUpdateEmail } = require('../utils/emailService');
 
 const fs = require('fs');
 const path = require('path');
@@ -164,6 +164,7 @@ const getMergedMemoryOrders = () => {
 };
 
 exports.getMergedMemoryOrders = getMergedMemoryOrders;
+exports.saveCachedOrders = saveCachedOrders;
 
 // @desc Sync order from client or serverless lambda
 // @route POST /api/orders/sync
@@ -600,6 +601,7 @@ exports.updateOrderStatus = async (req, res) => {
     }
 
     if (order) {
+      const previousStatus = order.orderStatus;
       order.orderStatus = newStatus;
       order.updatedAt = Date.now();
       order.statusTimeline = order.statusTimeline || [];
@@ -627,10 +629,16 @@ exports.updateOrderStatus = async (req, res) => {
         memOrder.orderStatus = newStatus;
         memOrder.updatedAt = new Date();
       }
-      getMergedMemoryOrders();
+      const allMerged = getMergedMemoryOrders();
+      saveCachedOrders(allMerged);
 
       const io = req.app.get('io');
       if (io) io.emit('order:updated', updatedOrder);
+
+      // Send status update notification email (Customer & Admin)
+      sendOrderStatusUpdateEmail(updatedOrder, previousStatus, newStatus).catch(err =>
+        console.error('Status update email error:', err.message)
+      );
 
       return res.json(updatedOrder);
     }
@@ -643,15 +651,22 @@ exports.updateOrderStatus = async (req, res) => {
     );
 
     if (memOrder) {
+      const previousStatus = memOrder.orderStatus;
       memOrder.orderStatus = newStatus;
       memOrder.updatedAt = new Date();
       memOrder.statusTimeline = memOrder.statusTimeline || [];
       memOrder.statusTimeline.push({ status: newStatus, updatedAt: Date.now() });
 
-      getMergedMemoryOrders();
+      const allMerged = getMergedMemoryOrders();
+      saveCachedOrders(allMerged);
 
       const io = req.app.get('io');
       if (io) io.emit('order:updated', memOrder);
+
+      // Send status update notification email (Customer & Admin)
+      sendOrderStatusUpdateEmail(memOrder, previousStatus, newStatus).catch(err =>
+        console.error('Status update email error:', err.message)
+      );
 
       return res.json(memOrder);
     }

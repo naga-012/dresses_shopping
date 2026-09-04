@@ -68,6 +68,56 @@ export default function Profile() {
     }
   };
 
+  const handleGetLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser.');
+      return;
+    }
+    toast.loading('Detecting Google GPS location...', { id: 'prof-loc' });
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        const gUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+          const data = await res.json();
+          if (data && data.address) {
+            const addrObj = data.address;
+            const road = addrObj.road || addrObj.suburb || addrObj.neighbourhood || '';
+            const house = addrObj.house_number || '';
+            const suburb = addrObj.suburb || addrObj.city_district || '';
+            const city = addrObj.city || addrObj.town || addrObj.village || addrObj.state_district || '';
+            const state = addrObj.state || '';
+            const pincode = addrObj.postcode || '';
+            const streetString = [house, road, suburb].filter(Boolean).join(', ') || data.display_name?.split(',').slice(0, 2).join(',') || 'GPS Location';
+
+            setNewAddr(prev => ({
+              ...prev,
+              street: streetString,
+              city: city || prev.city,
+              state: state || prev.state,
+              pincode: pincode || prev.pincode,
+              googleMapsUrl: gUrl,
+              lat: latitude,
+              lng: longitude
+            }));
+            toast.success('Google GPS Location detected & filled!', { id: 'prof-loc' });
+          } else {
+            setNewAddr(prev => ({ ...prev, googleMapsUrl: gUrl, lat: latitude, lng: longitude }));
+            toast.success('Google GPS coordinates captured!', { id: 'prof-loc' });
+          }
+        } catch (e) {
+          setNewAddr(prev => ({ ...prev, googleMapsUrl: gUrl, lat: latitude, lng: longitude }));
+          toast.success('Google GPS location captured!', { id: 'prof-loc' });
+        }
+      },
+      (error) => {
+        toast.error('Location permission denied.', { id: 'prof-loc' });
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
+
   const handleAddAddress = (e) => {
     e.preventDefault();
     if (!newAddr.street || !newAddr.city || !newAddr.pincode) {
@@ -75,8 +125,12 @@ export default function Profile() {
       return;
     }
 
+    const fullAddressStr = [newAddr.street, newAddr.city, newAddr.state, newAddr.pincode].filter(Boolean).join(', ');
+    const finalGUrl = newAddr.googleMapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(fullAddressStr)}`;
+
     const created = {
       ...newAddr,
+      googleMapsUrl: finalGUrl,
       id: 'addr_' + Date.now(),
       isDefault: addresses.length === 0
     };
@@ -92,7 +146,10 @@ export default function Profile() {
       city: '',
       state: '',
       pincode: '',
-      phone: user?.phone || ''
+      phone: user?.phone || '',
+      googleMapsUrl: '',
+      lat: null,
+      lng: null
     });
     toast.success('New address added successfully!');
   };
@@ -261,7 +318,16 @@ export default function Profile() {
           {/* Add Address Form */}
           {showAddModal && (
             <form onSubmit={handleAddAddress} style={{ background: '#141419', padding: '16px', borderRadius: '12px', marginBottom: '20px', border: '1px solid rgba(212,175,55,0.3)' }}>
-              <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#d4af37', marginBottom: '12px' }}>New Shipping Address</h4>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                <h4 style={{ fontSize: '14px', fontWeight: 700, color: '#d4af37', margin: 0 }}>New Shipping Address</h4>
+                <button
+                  type="button"
+                  onClick={handleGetLocation}
+                  style={{ background: 'rgba(212, 175, 55, 0.15)', border: '1px solid #d4af37', color: '#d4af37', padding: '4px 10px', borderRadius: '14px', fontSize: '11px', fontWeight: 700, cursor: 'pointer' }}
+                >
+                  📍 Use Google Location (GPS)
+                </button>
+              </div>
               
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div>
